@@ -1,0 +1,9 @@
+<library path="rakuda_hardware">
+  <class name="rakuda_hardware/RakudaHardware"
+         type="rakuda_control::RakudaHardware"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      A Rakuda hardware plugin for the ros2_control.
+    </description>
+  </class>
+</library>
