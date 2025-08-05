@@ -45,7 +45,7 @@ ros2 topic echo /joint_states
 ## Controller Manager Parameters
 
 The Controller Manager parameters are stored in
-[config/sciurus17_controllers.yaml](./config/sciurus17_controllers.yaml)
+[config/rakuda_controllers.yaml](./config/sciurus17_controllers.yaml)
 
 
 ```yaml
@@ -86,7 +86,7 @@ You can set up a controller to control each joint on Rakuda. The names and roles
 
 
 ```xml
-  <xacro:arg name="port_name" default="/dev/sciurus17spine" />
+  <xacro:arg name="port_name" default="/dev/rakudaspine" />
   <xacro:arg name="baudrate" default="3000000" />
   <xacro:arg name="timeout_seconds" default="1.0" />
   <xacro:arg name="manipulator_config_file_path" default="" />
