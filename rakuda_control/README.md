@@ -59,12 +59,12 @@ controller_manager:
       type: position_controllers/GripperActionController
 ```
 
-#### control cycle
+##### control cycle
 
 `update_rate` sets the control period
 
 
-#### controller
+##### controller
 
 You can set up a controller to control each joint on Rakuda. The names and roles of controllers correspond to each other as follows:
 
@@ -92,23 +92,23 @@ You can set up a controller to control each joint on Rakuda. The names and roles
   <xacro:arg name="manipulator_config_file_path" default="" />
 ```
 
-#### USB communication port
+##### USB communication port
 
 `port_name` Sets the USB communication port to be used to communicate with the Rakuda.
 
-#### Baud rate
+##### Baud rate
 
 `baudrate` sets the communication baud rate with the Dynamixel installed in Rakuda.
 
 The default value is set to (3 Mbps).
 
-#### Communication Timeout
+##### Communication Timeout
 
 `timeout_seconds` sets the communication timeout time in seconds.
 
 If communication continues to fail for a certain period of time (default 1 second), Stop read/write from working. This is effective when the USB cable or power cable is disconnected.
 
-#### Configuration file path for RT manipulator C++ libraries
+##### Configuration file path for RT manipulator C++ libraries
 
 `rakuda_hardware` uses the 
 [RT manipulator C++ library](https://github.com/rt-net/rt_manipulators_cpp) to communicate with Rakuda.
