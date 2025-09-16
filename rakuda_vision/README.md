@@ -17,13 +17,8 @@ It integrates the [realsense2_camera](https://github.com/IntelRealSense/realsens
 
 ## Installation
 
-1. Clone this package into your ROS 2 workspace:
-   ```bash
-   cd ~/ros2_ws/src
-   git clone https://github.com/<your-org>/rakuda_vision.git
-   ```
 
-2. Install dependencies:
+1. Install dependencies:
    ```bash
    sudo apt update
    sudo apt install ros-${ROS_DISTRO}-realsense2-camera \
@@ -31,7 +26,7 @@ It integrates the [realsense2_camera](https://github.com/IntelRealSense/realsens
                     ros-${ROS_DISTRO}-image-transport
    ```
 
-3. Build the workspace:
+2. Build the workspace:
    ```bash
    cd ~/ros2_ws
    colcon build --packages-select rakuda_vision
@@ -87,16 +82,6 @@ The package publishes the following topics (when enabled):
 | `depth_height` | `480` | Height of the depth image |
 | `fps` | `30` | Frames per second |
 
----
-
-## Example Integration
-
-To visualize the camera output in **RViz**:
-```bash
-rviz2 -d $(ros2 pkg prefix rakuda_vision)/share/rakuda_vision/config/vision.rviz
-```
-
----
 
 ## License
 
