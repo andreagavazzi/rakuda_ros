@@ -29,9 +29,6 @@ def generate_launch_description():
                 'device_type': 'd415',
                 'rgb_camera.color_profile': '640x360x30',
                 'depth_module.depth_profile': '640x360x30',
-                'enable_infra': 'false',
-                'enable_infra1': 'false',
-                'enable_infra2': 'false',
                 'pointcloud.enable': 'true',
                 'align_depth.enable': 'true',
             }.items()
