@@ -3,7 +3,7 @@
 The **`rakuda_vision`** package provides vision capabilities for the Rakuda robot platform using the **Intel RealSense D415** depth camera.  
 It integrates the [realsense2_camera](https://github.com/IntelRealSense/realsense-ros) driver into the ROS 2 ecosystem, making RGB-D data available for perception, manipulation, and AI tasks.
 
-<img align="center" src="[https://github.com/andreagavazzi/rakuda_ros/blob/main/rakuda_vision/camera.png](https://github.com/andreagavazzi/rakuda_ros/blob/main/rakuda_vision/camera.png)" width="800" />
+<img align="center" src="[https://github.com/andreagavazzi/rakuda_ros/blob/main/rakuda_vision/camera.png](https://github.com/andreagavazzi/rakuda_ros/blob/main/rakuda_vision/camera.png)" width="600" />
 
 ---
 
