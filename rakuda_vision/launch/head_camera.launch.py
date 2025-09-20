@@ -1,4 +1,4 @@
-# Copyright 2023 RT Corporation
+# Copyright 2023 Andrea Gavazzi
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,6 +31,12 @@ def generate_launch_description():
                 'depth_module.depth_profile': '640x360x30',
                 'pointcloud.enable': 'true',
                 'align_depth.enable': 'true',
+                
+                'base_frame_id': 'head_camera_link',
+                'color_frame_id': 'head_camera_color_frame',
+                'color_optical_frame_id': 'head_camera_color_optical_frame',
+                'publish_tf': 'false'   # tf are published by robot_state_publisher
+                
             }.items()
         )
 
