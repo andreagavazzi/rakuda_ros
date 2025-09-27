@@ -45,6 +45,7 @@ ros2 launch rakuda_vision head_camera.launch.py
 ```
 
 Optional parameters:
+- `publish_tf:=true` — publish tf data.
 - `enable_pointcloud:=true` — publish point cloud data.  
 - `color_width:=640 color_height:=480` — set resolution for the color stream.  
 - `depth_width:=640 depth_height:=480` — set resolution for the depth stream.  
@@ -52,7 +53,7 @@ Optional parameters:
 
 Example:
 ```bash
-ros2 launch rakuda_vision head_camera.launch.py enable_pointcloud:=true fps:=30
+ros2 launch rakuda_vision head_camera.launch.py publish_tf:=true fps:=30
 ```
 
 ---
