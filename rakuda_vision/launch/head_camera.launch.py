@@ -52,6 +52,9 @@ def generate_launch_description():
 
             'color_frame_id': 'head_camera_color_frame',
             'color_optical_frame_id': 'head_camera_color_optical_frame'
+            
+            'respawn': 'true'
+            
         }.items()
     )
 
