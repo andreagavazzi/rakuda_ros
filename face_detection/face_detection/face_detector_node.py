@@ -1,4 +1,4 @@
-# file: face_detection_pkg/face_detector_node.py
+# file: face_detection/face_detector_node.py
 # ROS 2 Humble + Python — RetinaFace (MobileNet-0.25 ONNX) with OpenCV DNN
 # Publishes:
 #  - /face_detector/image_faces (sensor_msgs/Image) : image with bboxes
