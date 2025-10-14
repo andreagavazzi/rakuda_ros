@@ -1,0 +1,1 @@
+ros2 run face_detection_pkg face_detector
