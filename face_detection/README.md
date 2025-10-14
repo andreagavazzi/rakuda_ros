@@ -26,10 +26,19 @@ The node subscribes to a camera topic (e.g., `/camera/image_raw`), performs face
 
 This package serves as the foundation for building more advanced perception modules, such as face recognition and person tracking in robotics applications.
 
+### Install
+```bash
+colcon build --packages-select face_detection_pkg
+source install/setup.bash
+```
 
 ### Run the Face Detection Node
 ```bash
 ros2 run face_detection face_detector
+```
 
-
+Parametrizzato
+```bash
+ros2 run face_detection_pkg face_detector --ros-args -p model_path:=/home/ubuntu/models/retinaface/retinaface_mnet0.25.onnx -p conf_threshold:=0.6
+```
 
