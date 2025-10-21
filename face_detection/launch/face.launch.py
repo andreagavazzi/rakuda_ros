@@ -10,10 +10,8 @@ import os
 def generate_launch_description():
     # --- Percorsi share ---
     pkg_share = get_package_share_directory('face_detection')
-    orbbec_share = get_package_share_directory('orbbec_camera')
 
     default_model = os.path.join(pkg_share, 'models', 'yolov8n-face.pt')
-    orbbec_launch_path = os.path.join(orbbec_share, 'launch', 'gemini_330_series.launch.py')
 
     # --- Argomenti lanciabili ---
     input_topic      = LaunchConfiguration('input_topic')
@@ -26,7 +24,7 @@ def generate_launch_description():
 
     decl_args = [
         DeclareLaunchArgument('input_topic',      default_value='/camera/color/image_raw',
-                              description='Topic immagine colore della Orbbec'),
+                              description='Topic immagine rgb'),
         DeclareLaunchArgument('model_path',       default_value=default_model,
                               description='Percorso al file .pt del modello face (nel share del package)'),
         DeclareLaunchArgument('imgsz',            default_value='640',
@@ -41,11 +39,6 @@ def generate_launch_description():
                               description='Elabora 1 frame ogni N'),
     ]
 
-    # --- Include launch Orbbec (camera) ---
-    orbbec_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(orbbec_launch_path)
-        # Se vuoi passare argomenti alla camera, aggiungi "launch_arguments={...}.items()"
-    )
 
     # --- Nodo YOLO face ---
     face_node = Node(
