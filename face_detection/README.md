@@ -1,44 +1,65 @@
 ![ROS 2](https://img.shields.io/badge/ROS2-Humble-blue)
 ![Jetson Orin Nano](https://img.shields.io/badge/Jetson-Orin%20Nano-green)
+![YOLOv8](https://img.shields.io/badge/YOLOv8-blue)
 
-## Face Detection Package for ROS 2 Humble (Jetson Orin Nano Optimized)
+# face_detection
 
-This ROS 2 package (`face_detection`) provides a real-time face detection node implemented in Python using OpenCV's Deep Neural Network (DNN) module.  
-It is optimized for NVIDIA Jetson Orin Nano and designed to run efficiently with GPU acceleration (CUDA and cuDNN).
+ROS 2 (Humble) node for **real-time face detection from RGB camera**. It subscribes to a color image, runs a YOLO face model, and publishes:
+1) an **annotated image** with rectangles and labels 
+2) a **`vision_msgs/Detection2DArray`** with ROIs (`face`, score, bbox).
 
-The node subscribes to a camera topic (e.g., `/camera/image_raw`), performs face detection using the Res10 SSD model, and publishes the processed image with annotated bounding boxes to `/face_detector/image_faces`.
+---
 
-### Features
-- Real-time face detection at up to 30 FPS on Jetson Orin Nano  
-- GPU-accelerated inference via OpenCV DNN (CUDA backend)  
-- ROS 2 image I/O integration with `cv_bridge` and `image_transport`  
-- Easily extendable for face recognition and distance estimation  
+## Key features
+- **YOLO-based face detector** (Ultralytics). Model loaded once at startup from `model_path`.  
+- **GPU-aware**: uses CUDA automatically when available and attempts FP16 on supported models; otherwise falls back to CPU.  
+- **Annotated RGB output** (optional) with boxes and confidence text.  
+- **Lightweight throttling**: process every Nth frame (`process_every_n`).  
+- **ROS 2 friendly I/O** with explicit QoS (BEST_EFFORT, KEEP_LAST depth 10).
 
-### Topics
-- **Subscribed:** `/camera/image_raw` (`sensor_msgs/Image`)  
-- **Published:** `/face_detector/image_faces` (`sensor_msgs/Image`)  
+---
 
-### Requirements
-- ROS 2 Humble
-- Python 3.8+
-- OpenCV 4.x compiled with CUDA (`WITH_CUDA=ON`, `OPENCV_DNN_CUDA=ON`)
-- `cv_bridge`, `image_transport`, `rclpy`, `numpy`
+## Topics
 
-This package serves as the foundation for building more advanced perception modules, such as face recognition and person tracking in robotics applications.
+**Subscribe**
+- `/camera/color/image_raw` — `sensor_msgs/Image` (parameter `input_topic`)
 
-### Install
+**Publish**
+- `/face_detection/image_annotated` — `sensor_msgs/Image` (parameter `output_topic`, only if `visualize=true`)  
+- `/face_detection/rois` — `vision_msgs/Detection2DArray` with:  
+  - `results[].hypothesis.class_id = "face"`  
+  - `results[].hypothesis.score ∈ [0,1]`  
+  - `bbox.center (cx, cy)`, `bbox.size (w, h)`  
+  (parameter `roi_topic`)
+
+---
+
+## Parameters
+
+| Name | Type (default) | Description |
+|---|---|---|
+| `input_topic` | string (`/camera/color/image_raw`) | RGB input image topic |
+| `output_topic` | string (`/face_detection/image_annotated`) | Annotated image output |
+| `roi_topic` | string (`/face_detection/rois`) | Detections array output |
+| `model_path` | string (`<pkg>/models/yolov8n-face.pt`) | Face model path (must exist) |
+| `conf` | double (0.35) | Confidence threshold for detections |
+| `imgsz` | int (640) | Inference image size |
+| `visualize` | bool (true) | Draw and publish annotated image |
+| `max_det` | int (10) | Max detections per frame |
+| `process_every_n` | int (1) | Process 1 frame every *N* frames (throttling) |
+
+---
+
+## Build
+
 ```bash
-colcon build --packages-select face_detection_pkg
+colcon build --packages-select face_detection
 source install/setup.bash
 ```
 
-### Run the Face Detection Node
+### Run
 ```bash
-ros2 run face_detection face_detector
+ros2 launch face_detection face.launch.py
 ```
 
-Parametrizzato
-```bash
-ros2 run face_detection_pkg face_detector --ros-args -p model_path:=/home/ubuntu/models/retinaface/retinaface_mnet0.25.onnx -p conf_threshold:=0.6
-```
 
