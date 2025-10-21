@@ -62,4 +62,8 @@ source install/setup.bash
 ros2 launch face_detection face.launch.py
 ```
 
+## License
+
+(C) 2025 Andrea Gavazzi
+Unless attributed otherwise, everything in this repository is under the Apache License, Version 2.0.
 
