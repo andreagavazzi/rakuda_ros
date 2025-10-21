@@ -50,6 +50,15 @@ ROS 2 (Humble) node for **real-time face detection from RGB camera**. It subscri
 
 ---
 
+## Dependencies
+
+- ROS 2 Humble: `rclpy`, `vision_msgs`, `sensor_msgs`, `ament_index_python`
+- Python: `ultralytics`, `torch`, `opencv-python`, `cv_bridge`
+- Optional: CUDA (Jetson/desktop) for GPU acceleration
+
+:exclamation:Jetson note: install the JetPack-matching PyTorch wheel from NVIDIA
+
+
 ## Build
 
 ```bash
