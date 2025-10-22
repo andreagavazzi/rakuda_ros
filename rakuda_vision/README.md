@@ -9,7 +9,7 @@ It integrates the [OrbbecSDK_ROS2]([https://github.com/IntelRealSense/realsense-
 
 ## Features
 
-- Publishes **color and depth images** from the RealSense D415.  
+- Publishes **color and depth images** from the Gemini 335.  
 - Provides **point clouds** for 3D perception and environment mapping.  
 - Includes **launch files** to easily configure and start the camera.  
 - Supports multiple streams: color, depth, infrared, and aligned depth.  
@@ -17,29 +17,10 @@ It integrates the [OrbbecSDK_ROS2]([https://github.com/IntelRealSense/realsense-
 
 ---
 
-## Installation
-
-
-1. Install dependencies:
-   ```bash
-   sudo apt update
-   sudo apt install ros-${ROS_DISTRO}-realsense2-camera \
-                    ros-${ROS_DISTRO}-image-common \
-                    ros-${ROS_DISTRO}-image-transport
-   ```
-
-2. Build the workspace:
-   ```bash
-   cd ~/ros2_ws
-   colcon build --packages-select rakuda_vision
-   source install/setup.bash
-   ```
-
----
 
 ## Usage
 
-To launch the RealSense D415 with default parameters:
+To launch the Gemini 335 with default parameters:
 ```bash
 ros2 launch rakuda_vision head_camera.launch.py
 ```
