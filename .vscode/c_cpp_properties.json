@@ -1,0 +1,35 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/andrea/ros2_ws/install/realsense2_camera/include/**",
+        "/home/andrea/ros2_ws/install/realsense2_camera_msgs/include/**",
+        "/home/andrea/ros2_ws/install/orbbec_camera/include/**",
+        "/home/andrea/ros2_ws/install/orbbec_camera_msgs/include/**",
+        "/home/andrea/ros2_ws/install/dynamixel_sdk_custom_interfaces/include/**",
+        "/home/andrea/ros2_ws/install/dynamixel_hardware_interface/include/**",
+        "/home/andrea/ros2_ws/install/dynamixel_sdk/include/**",
+        "/home/andrea/ros2_ws/install/dynamixel_interfaces/include/**",
+        "/opt/ros/humble/include/**",
+        "/home/andrea/ros2_ws/src/DynamixelSDK/ros/dynamixel_sdk/include/**",
+        "/home/andrea/ros2_ws/src/DynamixelSDK/ros/dynamixel_sdk_examples/include/**",
+        "/home/andrea/ros2_ws/src/OrbbecSDK_ROS2/orbbec_camera/include/**",
+        "/home/andrea/ros2_ws/src/dynamixel_hardware_interface/include/**",
+        "/home/andrea/ros2_ws/src/rakuda_ros/rakuda_control/include/**",
+        "/home/andrea/ros2_ws/src/rakuda_ros/rakuda_head_action/include/**",
+        "/home/andrea/ros2_ws/src/realsense-ros/realsense2_camera/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

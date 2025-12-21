@@ -1,0 +1,70 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 100  # Hz
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    torso_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    head_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+
+torso_controller:
+  ros__parameters:
+    joints:
+      - waist_yaw_joint
+
+    command_interfaces:
+      - position
+
+    state_interfaces:
+      - position
+      - velocity
+      # - effort   # solo se la HW interface pubblica effort/Present Current
+
+    state_publish_rate: 50.0
+    action_monitor_rate: 20.0
+
+    allow_partial_joints_goal: false
+    open_loop_control: true
+
+    constraints:
+      stopped_velocity_tolerance: 0.2
+      goal_time: 0.0
+      waist_yaw_joint:
+        trajectory: 0.2
+        goal: 0.05
+
+
+head_controller:
+  ros__parameters:
+    joints:
+      - neck_yaw_joint
+      - neck_pitch_joint
+
+    command_interfaces:
+      - position
+
+    state_interfaces:
+      - position
+      - velocity
+      # - effort
+
+    state_publish_rate: 50.0
+    action_monitor_rate: 20.0
+
+    allow_partial_joints_goal: false
+    open_loop_control: true
+
+    constraints:
+      stopped_velocity_tolerance: 0.05
+      goal_time: 0.5
+      neck_yaw_joint:
+        trajectory: 0.3
+        goal: 0.05
+      neck_pitch_joint:
+        trajectory: 0.3
+        goal: 0.05

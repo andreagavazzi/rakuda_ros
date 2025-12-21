@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>rakuda_control</name>
+  <version>0.0.1</version>
+  <description>ros2_control controllers and launch files for Rakuda (torso + head trajectory controllers).</description>
+
+  <maintainer email="andrea@example.com">Andrea</maintainer>
+  <license>Apache-2.0</license>
+
+  <!-- Build tool -->
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- Launch runtime -->
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <!-- Needed by the launch (xacro + get_package_share_directory) -->
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+
+  <!-- ros2_control runtime -->
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>ros2controlcli</exec_depend>
+
+  <!-- Controller plugins used in rakuda_controllers.yaml -->
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>joint_trajectory_controller</exec_depend>
+
+  <!-- Optional: only if your bringup launch starts RViz -->
+  <!-- <exec_depend>rviz2</exec_depend> -->
+  <!-- Optional: only if you start robot_state_publisher in this package -->
+  <!-- <exec_depend>robot_state_publisher</exec_depend> -->
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
+

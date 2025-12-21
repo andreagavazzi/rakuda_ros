@@ -1,0 +1,30 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/andrea/ros2_ws/install/sciurus17_description/local/lib/python3.10/dist-packages",
+        "/home/andrea/ros2_ws/install/realsense2_camera_msgs/local/lib/python3.10/dist-packages",
+        "/home/andrea/ros2_ws/install/rakuda_tools/lib/python3.10/site-packages",
+        "/home/andrea/ros2_ws/install/rakuda_description/lib/python3.10/site-packages",
+        "/home/andrea/ros2_ws/install/rakuda_control/local/lib/python3.10/dist-packages",
+        "/home/andrea/ros2_ws/install/rakuda_bringup/lib/python3.10/site-packages",
+        "/home/andrea/ros2_ws/install/orbbec_camera_msgs/local/lib/python3.10/dist-packages",
+        "/home/andrea/ros2_ws/install/dynamixel_sdk_custom_interfaces/local/lib/python3.10/dist-packages",
+        "/home/andrea/ros2_ws/install/dynamixel_sdk/local/lib/python3.10/dist-packages",
+        "/home/andrea/ros2_ws/install/dynamixel_interfaces/local/lib/python3.10/dist-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/andrea/ros2_ws/install/sciurus17_description/local/lib/python3.10/dist-packages",
+        "/home/andrea/ros2_ws/install/realsense2_camera_msgs/local/lib/python3.10/dist-packages",
+        "/home/andrea/ros2_ws/install/rakuda_tools/lib/python3.10/site-packages",
+        "/home/andrea/ros2_ws/install/rakuda_description/lib/python3.10/site-packages",
+        "/home/andrea/ros2_ws/install/rakuda_control/local/lib/python3.10/dist-packages",
+        "/home/andrea/ros2_ws/install/rakuda_bringup/lib/python3.10/site-packages",
+        "/home/andrea/ros2_ws/install/orbbec_camera_msgs/local/lib/python3.10/dist-packages",
+        "/home/andrea/ros2_ws/install/dynamixel_sdk_custom_interfaces/local/lib/python3.10/dist-packages",
+        "/home/andrea/ros2_ws/install/dynamixel_sdk/local/lib/python3.10/dist-packages",
+        "/home/andrea/ros2_ws/install/dynamixel_interfaces/local/lib/python3.10/dist-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ]
+}
