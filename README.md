@@ -108,11 +108,5 @@ ros2 run rakuda_tools <tool_name>
 
 ---
 
-## Notes / conventions
 
-- **Frames:** make sure TF frames are consistent (e.g. `base_link`, `torso_link`, camera optical frames, etc.)
-- **Controllers:** keep controller names stable to avoid breaking scripts and action clients
-- **Hardware:** Dynamixel configuration depends on motor models, IDs, and protocol settings
-
----
 
