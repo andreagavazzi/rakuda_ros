@@ -1,0 +1,118 @@
+# rakuda_ros
+
+ROS 2 workspace repository for **Rakuda**, containing bringup, control, head pointing action, and small utility tools.
+
+> Target ROS 2 distro: **Humble**
+
+---
+
+## Repository structure
+
+This repository contains the following packages:
+
+- **`rakuda_bringup`**
+- **`rakuda_control`**
+- **`rakuda_head_action`**
+- **`rakuda_tools`**
+
+---
+
+## Packages
+
+### `rakuda_bringup`
+High-level launch entrypoint to start the Rakuda robot stack.
+
+Typical responsibilities:
+- Start the robot description pipeline (URDF/Xacro + `robot_state_publisher`)
+- Start controllers / `ros2_control_node`
+- Spawn controllers (head / torso / etc.)
+- Optional visualization (RViz) and demo utilities
+
+**When to use it:** when you want “one command” to start the robot (or its main subsystems).
+
+---
+
+### `rakuda_control`
+Control stack based on **ros2_control**.
+
+Typical responsibilities:
+- Controller manager configuration
+- Controller YAMLs (head/torso controllers, joint state broadcaster, etc.)
+- Launch files that start `ros2_control_node` and spawn controllers
+
+
+**When to use it:** when you want to load and manage controllers and expose standard ROS 2 control interfaces.
+
+---
+
+### `rakuda_head_action`
+A ROS 2 node exposing a **PointHead interface** for the robot head (useful for “look at target” behaviors).
+
+Typical responsibilities:
+- Provide an Action server to command head orientation towards a 3D target
+- Convert target point + frames into commands compatible with the head controller
+- Integrate with TF to interpret target frames
+
+**When to use it:** when you want a standard-ish “point the head at X” behavior (e.g., look at a hand, look at an object).
+
+---
+
+### `rakuda_tools`
+Small utilities and helper nodes/scripts used during development and debugging.
+
+Typical responsibilities:
+- Enable/disable torque for all (or selected) Dynamixel motors
+- Set LEDs, read/write Dynamixel registers
+- Quick diagnostics and smoke-test scripts
+
+**When to use it:** when you need quick CLI tools to interact with hardware and verify the robot state.
+
+---
+
+## Build
+
+From your ROS 2 workspace root:
+
+```bash
+colcon build --symlink-install
+source install/setup.bash
+```
+
+Build a single package:
+
+```bash
+colcon build --packages-select rakuda_tools --symlink-install
+source install/setup.bash
+```
+
+---
+
+## Run (examples)
+
+> Replace launch filenames with the ones actually present in your packages.
+
+List available launch files:
+```bash
+ros2 launch --show-args rakuda_bringup <launch_file>.launch.py
+```
+
+Start control stack:
+```bash
+ros2 launch rakuda_control rakuda_control.launch.py
+```
+
+Run a tool:
+```bash
+ros2 run rakuda_tools <tool_name>
+```
+
+---
+
+## Notes / conventions
+
+- **Frames:** make sure TF frames are consistent (e.g. `base_link`, `torso_link`, camera optical frames, etc.)
+- **Controllers:** keep controller names stable to avoid breaking scripts and action clients
+- **Hardware:** Dynamixel configuration depends on motor models, IDs, and protocol settings
+
+---
+
