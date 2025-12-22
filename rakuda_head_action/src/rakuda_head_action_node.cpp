@@ -262,23 +262,23 @@ private:
     return true;
   }
 
-  void execute(const std::shared_ptr<GoalHandlePH> gh)
+
+    void execute(const std::shared_ptr<GoalHandlePH> gh)
   {
     auto result = std::make_shared<PointHead::Result>();
     const auto goal = gh->get_goal();
-
-    // Decide pointing_frame & axis (POINT 3)
+  
+    // Decide pointing_frame & axis
     std::string pointing_frame = goal->pointing_frame;
     if (pointing_frame.empty()) pointing_frame = default_pointing_frame_;
-
+  
     tf2::Vector3 axis(goal->pointing_axis.x, goal->pointing_axis.y, goal->pointing_axis.z);
     if (axis.length() < 0.1) {
-      // Optical frame default: +Z
       axis = tf2::Vector3(0, 0, 1);
     } else {
       axis.normalize();
     }
-
+  
     // Transform target to root_frame
     geometry_msgs::msg::PointStamped target_root;
     try {
@@ -288,63 +288,118 @@ private:
       gh->abort(result);
       return;
     }
-
+  
     const tf2::Vector3 target_in_root(target_root.point.x, target_root.point.y, target_root.point.z);
-
-    // Get current camera origin+axis in root (for feedback + direction computation)
+  
+    // Get current camera origin+axis in root
     tf2::Vector3 cam_origin_root, cam_axis_root;
     if (!get_current_camera_axis_in_root(pointing_frame, axis, cam_origin_root, cam_axis_root)) {
       gh->abort(result);
       return;
     }
-
+  
     tf2::Vector3 d_root = target_in_root - cam_origin_root;
     if (d_root.length() < 1e-6) {
       RCLCPP_ERROR(get_logger(), "Target too close to camera origin; cannot define direction.");
       gh->abort(result);
       return;
     }
-
-    // Publish initial feedback: current pointing error wrt camera axis
+  
+    // Initial feedback
     {
       auto fb = std::make_shared<PointHead::Feedback>();
       fb->pointing_angle_error = angle_between(cam_axis_root, d_root);
       gh->publish_feedback(fb);
     }
-
-    // Convert pointing axis to pitch_link frame (fixed vector a0)
+  
+    // Convert pointing axis to pitch_link frame
     tf2::Vector3 a0_pitch;
     if (!get_axis_in_pitch_link(pointing_frame, axis, a0_pitch)) {
       gh->abort(result);
       return;
     }
     a0_pitch.normalize();
-
-    // Seed from current joints (if available)
+  
+    // Wait briefly for joint states if not available
     double yaw_now = 0.0, pitch_now = 0.0;
-    (void)get_current_positions(yaw_now, pitch_now);
-
-    // Solve yaw/pitch to align the *camera optical axis* to target direction
+    const double wait_joints_sec = 1.0;
+    rclcpp::Time wait_start = this->now();
+    while (!get_current_positions(yaw_now, pitch_now)) {
+      if ((this->now() - wait_start).seconds() > wait_joints_sec) {
+        RCLCPP_WARN(get_logger(), "Joint states not available, using seed zeros.");
+        break;
+      }
+      rclcpp::sleep_for(std::chrono::milliseconds(50));
+    }
+  
+    // Solve for command angles
     double yaw_cmd = yaw_now;
     double pitch_cmd = pitch_now;
     solve_yaw_pitch_for_axis(a0_pitch, d_root, yaw_now, pitch_now, yaw_cmd, pitch_cmd);
-
-    // Duration handling (min_duration + max_velocity)
-    double duration = std::max(default_duration_sec_,
-                               rclcpp::Duration(goal->min_duration).seconds());
-
+  
+    // Duration handling
+    double duration = std::max(default_duration_sec_, rclcpp::Duration(goal->min_duration).seconds());
     if (goal->max_velocity > 1e-6) {
       const double dy = std::fabs(yaw_cmd - yaw_now);
       const double dp = std::fabs(pitch_cmd - pitch_now);
       duration = std::max(duration, std::max(dy, dp) / goal->max_velocity);
     }
-
+  
     // Send command
     publish_trajectory(yaw_cmd, pitch_cmd, duration);
-
-    // For now we succeed immediately (we'll do point 1-2 next)
-    gh->succeed(result);
+  
+    // Monitor execution: publish feedback, handle cancel, succeed/abort on tolerance/timeout
+    const double angle_tolerance = 1e-2; // ~0.57 deg
+    const double feedback_rate_hz = 10.0;
+    const double extra_timeout = 1.0; // extra seconds beyond duration
+    const double max_monitor_time = std::max(duration + extra_timeout, duration * 2.0);
+  
+    rclcpp::Time monitor_start = this->now();
+    rclcpp::Rate rate(feedback_rate_hz);
+  
+    while (rclcpp::ok()) {
+      // Cancel requested?
+      if (gh->is_canceling()) {
+        RCLCPP_INFO(get_logger(), "Goal cancel requested.");
+        gh->canceled(result);
+        return;
+      }
+  
+      // Check timeout
+      if ((this->now() - monitor_start).seconds() > max_monitor_time) {
+        RCLCPP_ERROR(get_logger(), "Pointing action timed out (%.3f s).", max_monitor_time);
+        gh->abort(result);
+        return;
+      }
+  
+      // Recompute current camera axis from TF (reflects current joint state)
+      tf2::Vector3 cur_cam_origin, cur_cam_axis;
+      if (!get_current_camera_axis_in_root(pointing_frame, axis, cur_cam_origin, cur_cam_axis)) {
+        RCLCPP_WARN(get_logger(), "Unable to obtain current camera axis during monitoring.");
+        // continue and retry
+        rate.sleep();
+        continue;
+      }
+  
+      double ang_err = angle_between(cur_cam_axis, d_root);
+      auto fb = std::make_shared<PointHead::Feedback>();
+      fb->pointing_angle_error = ang_err;
+      gh->publish_feedback(fb);
+  
+      if (ang_err < angle_tolerance) {
+        RCLCPP_INFO(get_logger(), "Pointing target reached (error %.5f rad).", ang_err);
+        gh->succeed(result);
+        return;
+      }
+  
+      rate.sleep();
+    }
+  
+    // If we exit loop unexpectedly, abort
+    gh->abort(result);
   }
+
+
 
 private:
   std::string controller_name_;
