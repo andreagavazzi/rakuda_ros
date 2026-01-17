@@ -1,37 +1,14 @@
 # rakuda_ros
 
-ROS2 repository for **Rakuda**
 
 > [!WARNING]  
 > The repository is currently in heavy development.
 
----
+
 
 ## Repository structure
 
 This repository contains the following packages:
-
-- **`rakuda_bringup`**
-- **`rakuda_control`**
-- **`rakuda_head_action`**
-- **`rakuda_tools`**
-
----
-
-## Packages
-
-### `rakuda_bringup`
-High-level launch entrypoint to start the Rakuda robot stack.
-
-Typical responsibilities:
-- Start the robot description pipeline (URDF/Xacro + `robot_state_publisher`)
-- Start controllers / `ros2_control_node`
-- Spawn controllers (head / torso / etc.)
-- Optional visualization (RViz) and demo utilities
-
-**When to use it:** when you want “one command” to start the robot (or its main subsystems).
-
----
 
 ### `rakuda_control`
 Control stack based on **ros2_control**.
@@ -41,10 +18,10 @@ Typical responsibilities:
 - Controller YAMLs (head/torso controllers, joint state broadcaster, etc.)
 - Launch files that start `ros2_control_node` and spawn controllers
 
+```bash
+ros2 launch rakuda_control rakuda_control.launch.py
+```
 
-**When to use it:** when you want to load and manage controllers and expose standard ROS 2 control interfaces.
-
----
 
 ### `rakuda_head_action`
 A ROS 2 node exposing a **PointHead interface** for the robot head (useful for “look at target” behaviors).
@@ -107,13 +84,5 @@ Run a tool:
 ros2 run rakuda_tools <tool_name>
 ```
 
----
 
-## Notes / conventions
-
-- **Frames:** make sure TF frames are consistent (e.g. `base_link`, `torso_link`, camera optical frames, etc.)
-- **Controllers:** keep controller names stable to avoid breaking scripts and action clients
-- **Hardware:** Dynamixel configuration depends on motor models, IDs, and protocol settings
-
----
 
