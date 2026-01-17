@@ -1,6 +1,7 @@
 # rakuda_ros
 
-
+This repository groups multiple ROS 2 packages that cover the full stack: control (ros2_control), tools/utilities, and higher-level behaviors.
+Each package can be built and launched independently, but they are designed to work together.
 
 
 
@@ -12,7 +13,7 @@ It provides the runtime configuration and launch files to bring up `ros2_control
 - Controllers YAML (joints, interfaces, constraints)
 - Launch files to load/activate controllers and broadcasters
 
-## Usage
+### Usage
 ```bash
 ros2 launch rakuda_control rakuda_control_launch.py
 ros2 control list_controllers
