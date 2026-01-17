@@ -10,17 +10,23 @@
 
 This repository contains the following packages:
 
-### `rakuda_control`
-Control stack based on **ros2_control**.
+# rakuda_control
 
-Typical responsibilities:
-- Controller manager configuration
-- Controller YAMLs (head/torso controllers, joint state broadcaster, etc.)
-- Launch files that start `ros2_control_node` and spawn controllers
+ROS 2 control package for **Rakuda**.  
+It provides the runtime configuration and launch files to bring up `ros2_control`:
+- Controller Manager (`ros2_control_node`) setup
+- Controllers YAML (joints, interfaces, constraints)
+- Launch files to load/activate controllers and broadcasters
 
+## Usage
 ```bash
-ros2 launch rakuda_control rakuda_control.launch.py
+ros2 launch rakuda_control rakuda_control_launch.py
+ros2 control list_controllers
+ros2 control set_controller_state head_controller active
 ```
+
+## Notes
+- Works together with the rakuda_description package (URDF/Xacro) and the Dynamixel hardware interface.
 
 
 ### `rakuda_head_action`
