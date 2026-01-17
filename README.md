@@ -1,16 +1,10 @@
 # rakuda_ros
 
 
-> [!WARNING]  
-> The repository is currently in heavy development.
 
 
 
-## Repository structure
-
-This repository contains the following packages:
-
-# rakuda_control
+### `rakuda_control`
 
 ROS 2 control package for **Rakuda**.  
 It provides the runtime configuration and launch files to bring up `ros2_control`:
@@ -25,19 +19,9 @@ ros2 control list_controllers
 ros2 control set_controller_state head_controller active
 ```
 
-## Notes
-- Works together with the rakuda_description package (URDF/Xacro) and the Dynamixel hardware interface.
+> [!IMPORTANT]  
+> Works together with the rakuda_description package (URDF/Xacro) and the Dynamixel hardware interface.
 
-
-### `rakuda_head_action`
-A ROS 2 node exposing a **PointHead interface** for the robot head (useful for “look at target” behaviors).
-
-Typical responsibilities:
-- Provide an Action server to command head orientation towards a 3D target
-- Convert target point + frames into commands compatible with the head controller
-- Integrate with TF to interpret target frames
-
-**When to use it:** when you want a standard-ish “point the head at X” behavior (e.g., look at a hand, look at an object).
 
 ---
 
