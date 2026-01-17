@@ -3,16 +3,23 @@
 <package format="3">
   <name>rakuda_head_action</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>The head action is a node that provides an action interface for pointing the head. It passes trajectory goals to the controller, and reports success when they have finished executing.</description>
   <maintainer email="andrea.gavazzi@me.com">Andrea Gavazzi</maintainer>
   <license>Apache-2.0</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
   <depend>rclcpp_action</depend>
   <depend>control_msgs</depend>
   <depend>trajectory_msgs</depend>
   <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>tf2</depend>
   <depend>tf2_ros</depend>
   <depend>tf2_geometry_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>urdf</depend>
+
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
   <export>

@@ -1,56 +1,58 @@
 from launch import LaunchDescription
 from launch_ros.actions import Node
-
 import os
-import xacro
 from ament_index_python.packages import get_package_share_directory
 
-
 def generate_launch_description():
-    description_share = get_package_share_directory('rakuda_description')
+
     control_share = get_package_share_directory('rakuda_control')
-
-    xacro_file = os.path.join(description_share, 'urdf', 'rakuda.xacro')
-    robot_description_config = xacro.process_file(xacro_file)
-    robot_urdf = robot_description_config.toxml()
-
     controllers_file = os.path.join(control_share, 'config', 'rakuda_controllers.yaml')
-
+    
     ros2_control_node = Node(
         package='controller_manager',
         executable='ros2_control_node',
-        parameters=[
-            {'robot_description': robot_urdf},
-            controllers_file
-        ],
-        output='screen'
+        parameters=[controllers_file],
+        remappings=[('~/robot_description', '/robot_description')],
+        output='log',
     )
 
     joint_state_broadcaster_spawner = Node(
         package='controller_manager',
         executable='spawner',
-        arguments=['joint_state_broadcaster', '--controller-manager', '/controller_manager'],
-        output='screen'
+        name='spawner_joint_state_broadcaster',
+        arguments=['joint_state_broadcaster', '-c', '/controller_manager', '--controller-manager-timeout', '60'],
+        output='log'
     )
 
     torso_controller_spawner = Node(
         package='controller_manager',
         executable='spawner',
-        arguments=['torso_controller', '--controller-manager', '/controller_manager'],
-        output='screen'
+        name='spawner_torso_controller',
+        arguments=['torso_controller', '-c', '/controller_manager', '--controller-manager-timeout', '60'],
+        output='log'
     )
 
     head_controller_spawner = Node(
         package='controller_manager',
         executable='spawner',
-        arguments=['head_controller', '--controller-manager', '/controller_manager'],
-        output='screen'
+        name='spawner_head_controller',
+        arguments=['head_controller', '-c', '/controller_manager', '--controller-manager-timeout', '60'],
+        output='log'
     )
+
+    # # Disabilita torque dai Dynamixel delle braccia
+    # torque_except_node = Node(
+    #     package="rakuda_tools",
+    #     executable="torque_except",
+    #     name="torque_except",
+    #     output="log",
+    # )
 
     return LaunchDescription([
         ros2_control_node,
         joint_state_broadcaster_spawner,
         torso_controller_spawner,
-        head_controller_spawner
+        head_controller_spawner,
+        #torque_except_node,
     ])
 

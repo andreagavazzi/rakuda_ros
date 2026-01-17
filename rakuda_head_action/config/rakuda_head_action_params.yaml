@@ -1,4 +1,0 @@
-rakuda_head_action_node:
-  ros__parameters:
-    example_param: "abc"
-

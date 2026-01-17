@@ -19,7 +19,10 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'head_motion_filter = rakuda_tools.head_motion_filter:main',
             'torque_except = rakuda_tools.torque_except:main',
+            'look_at_link_target = rakuda_tools.look_at_link_target:main',
+            'head_gimbal_keyboard = rakuda_tools.head_gimbal_keyboard:main',
         ],
     },
 )

@@ -4,22 +4,46 @@ from rclpy.node import Node
 
 from std_srvs.srv import SetBool
 from dynamixel_interfaces.srv import SetDataToDxl
+from std_msgs.msg import Float64MultiArray
 
 
 class TorqueExceptNode(Node):
     def __init__(self):
         super().__init__('torque_except')
 
-        self.declare_parameter('keep_ids', [2, 3])
+        self.declare_parameter('keep_ids', [1, 2, 3])
         self.declare_parameter('disable_all_first', True)
+
+        # Optional: after torque setup, publish a simple 'home' to head controller (position group)
+        self.declare_parameter('send_head_home', False)
+        self.declare_parameter('head_home_positions', [0.0, 0.0])  # [yaw, pitch] rad
+
+        # Where to publish home:
+        # - 'commands' -> /head_controller/commands (recommended for JointGroupPositionController)
+        # - 'target'   -> /head_target (if you want head_gimbal_pos to handle it)
+        self.declare_parameter('head_home_topic_mode', 'commands')
+        self.declare_parameter('head_home_pub_count', 10)
+        self.declare_parameter('head_home_pub_rate_hz', 20.0)
 
         self.keep_ids = [int(x) for x in self.get_parameter('keep_ids').value]
         self.disable_all_first = bool(self.get_parameter('disable_all_first').value)
 
+        self.send_head_home = bool(self.get_parameter('send_head_home').value)
+        self.head_home_positions = [float(x) for x in self.get_parameter('head_home_positions').value]
+        self.head_home_topic_mode = str(self.get_parameter('head_home_topic_mode').value)
+        self.head_home_pub_count = int(self.get_parameter('head_home_pub_count').value)
+        self.head_home_pub_rate_hz = float(self.get_parameter('head_home_pub_rate_hz').value)
+
         self.cli_all = self.create_client(SetBool, '/dynamixel_hardware_interface/set_dxl_torque')
         self.cli_set = self.create_client(SetDataToDxl, '/dynamixel_hardware_interface/set_dxl_data')
 
+        # Publishers for "home"
+        self.pub_head_commands = self.create_publisher(Float64MultiArray, '/head_controller/commands', 10)
+        self.pub_head_target = self.create_publisher(Float64MultiArray, '/head_target', 10)
+
         self._pending = 0
+        self._home_left = 0
+        self._home_timer = None
 
         # Aspetta che i service siano disponibili, poi parte
         self.timer = self.create_timer(0.2, self._tick)
@@ -55,7 +79,6 @@ class TorqueExceptNode(Node):
         self._enable_keep_ids()
 
     def _enable_keep_ids(self):
-        # Se non ci sono ID da tenere, chiudiamo
         if not self.keep_ids:
             self.get_logger().info('Nessun keep_id specificato. Fine.')
             rclpy.shutdown()
@@ -94,16 +117,58 @@ class TorqueExceptNode(Node):
 
         self._pending -= 1
         if self._pending <= 0:
-            self.get_logger().info('Fatto.')
+            if self.send_head_home:
+                self.get_logger().info('Torque setup complete. Publishing head home...')
+                self._publish_head_home_start()
+            else:
+                self.get_logger().info('Done.')
+                rclpy.shutdown()
+
+    def _publish_head_home_start(self):
+        if len(self.head_home_positions) != 2:
+            self.get_logger().error(f"head_home_positions must be [yaw, pitch], got: {self.head_home_positions}")
+            rclpy.shutdown()
+            return
+
+        self._home_left = max(1, self.head_home_pub_count)
+        period = 1.0 / max(1.0, self.head_home_pub_rate_hz)
+
+        # publish immediately and then with a timer
+        self._publish_head_home_once()
+        self._home_left -= 1
+
+        if self._home_left <= 0:
+            self.get_logger().info('Head home published. Fine.')
+            rclpy.shutdown()
+            return
+
+        self._home_timer = self.create_timer(period, self._publish_head_home_timer_cb)
+
+    def _publish_head_home_timer_cb(self):
+        self._publish_head_home_once()
+        self._home_left -= 1
+        if self._home_left <= 0:
+            if self._home_timer is not None:
+                self._home_timer.cancel()
+            self.get_logger().info('Head home published. Fine.')
             rclpy.shutdown()
 
+    def _publish_head_home_once(self):
+        yaw, pitch = self.head_home_positions
+        msg = Float64MultiArray()
+        msg.data = [float(yaw), float(pitch)]
+
+        mode = self.head_home_topic_mode.lower().strip()
+        if mode == 'target':
+            self.pub_head_target.publish(msg)
+        else:
+            # default: commands
+            self.pub_head_commands.publish(msg)
 
 def main():
     rclpy.init()
     node = TorqueExceptNode()
     rclpy.spin(node)
 
-
 if __name__ == '__main__':
     main()
-

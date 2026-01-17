@@ -1,0 +1,23 @@
+head_action:
+  ros__parameters:
+
+    robot_description_topic: /robot_description
+    clamp_limits: true
+
+    action_name: /point_head
+    trajectory_action_name: /head_controller/follow_joint_trajectory
+
+    reference_frame: torso_link
+
+    yaw_joint: neck_yaw_joint
+    pitch_joint: neck_pitch_joint
+
+    # se ti gira al contrario, metti -1.0
+    yaw_sign: 1.0
+    pitch_sign: -1.0
+    pitch_offset_rad: 0.0
+
+    default_min_duration_sec: 1.0
+    default_max_velocity: 1.5
+
+    joint_state_topic: /joint_states
