@@ -74,65 +74,74 @@ def _parse_float_expr(s: str) -> float:
     return float(eval(s, {"__builtins__": {}}, allowed))
 
 
+def _top_level_urdf_joints(root: ET.Element):
+    """
+    Return ONLY the URDF kinematic joints: direct children of <robot>.
+    This avoids ros2_control joints inside <ros2_control> which don't have <limit>.
+    """
+    joints = []
+    for child in list(root):
+        if _strip_xml_namespace(child.tag) == "joint":
+            joints.append(child)
+    return joints
+
+
 def parse_joint_limits_from_urdf(urdf_xml: str, joint_name: str, *, debug_log=None):
     """
-    Returns (lower, upper) if found. Otherwise None.
-    debug_log: callable(str) for extra debug.
+    Returns (lower, upper) if found in URDF kinematic joint.
+    Looks ONLY at top-level URDF joints (children of <robot>), not ros2_control joints.
     """
     root = ET.fromstring(urdf_xml)
+    joints = _top_level_urdf_joints(root)
 
-    found_joint = None
-    for el in root.iter():
-        if _strip_xml_namespace(el.tag) != "joint":
-            continue
-        if el.attrib.get("name") == joint_name:
-            found_joint = el
-            break
-
-    if found_joint is None:
+    matches = [j for j in joints if j.attrib.get("name") == joint_name]
+    if not matches:
         if debug_log:
-            names = []
-            for el in root.iter():
-                if _strip_xml_namespace(el.tag) == "joint":
-                    n = el.attrib.get("name", "")
-                    if n:
-                        names.append(n)
+            names = [j.attrib.get("name", "") for j in joints if j.attrib.get("name", "")]
             similar = [n for n in names if joint_name in n or n in joint_name or "neck" in n]
-            debug_log(f"Joint '{joint_name}' not found. Similar joints: {similar[:30]}")
+            debug_log(f"URDF joint '{joint_name}' not found among top-level joints. Similar: {similar[:30]}")
         return None
 
-    jtype = found_joint.attrib.get("type", "")
-    if jtype == "continuous":
-        if debug_log:
-            debug_log(f"Joint '{joint_name}' is continuous (no lower/upper limits).")
-        return None
+    # If duplicates exist, pick first with usable limit
+    for idx, j in enumerate(matches):
+        jtype = j.attrib.get("type", "")
+        if jtype == "continuous":
+            continue
 
-    limit_el = None
-    for child in list(found_joint):
-        if _strip_xml_namespace(child.tag) == "limit":
-            limit_el = child
-            break
+        limit_el = None
+        for c in list(j):
+            if _strip_xml_namespace(c.tag) == "limit":
+                limit_el = c
+                break
 
-    if limit_el is None:
-        if debug_log:
-            debug_log(f"Joint '{joint_name}' found but has no <limit> tag.")
-        return None
+        if limit_el is None:
+            continue
 
-    lower_s = limit_el.attrib.get("lower", None)
-    upper_s = limit_el.attrib.get("upper", None)
-    if lower_s is None or upper_s is None:
-        if debug_log:
-            debug_log(f"Joint '{joint_name}' <limit> missing lower/upper: {limit_el.attrib}")
-        return None
+        lower_s = limit_el.attrib.get("lower", None)
+        upper_s = limit_el.attrib.get("upper", None)
+        if lower_s is None or upper_s is None:
+            continue
 
-    try:
-        lower = _parse_float_expr(lower_s)
-        upper = _parse_float_expr(upper_s)
-        return lower, upper
-    except Exception as e:
-        if debug_log:
-            debug_log(f"Joint '{joint_name}' limit parse failed: lower='{lower_s}' upper='{upper_s}' err={e}")
-        return None
+        try:
+            lower = _parse_float_expr(lower_s)
+            upper = _parse_float_expr(upper_s)
+            if debug_log and len(matches) > 1:
+                debug_log(f"Using URDF joint occurrence #{idx+1}/{len(matches)} with <limit>.")
+            return lower, upper
+        except Exception as e:
+            if debug_log:
+                debug_log(
+                    f"URDF joint '{joint_name}' limit parse failed: lower='{lower_s}' upper='{upper_s}' err={e}"
+                )
+            continue
+
+    if debug_log:
+        debug_log(f"URDF joint '{joint_name}' found {len(matches)} time(s) but none had a usable <limit>.")
+        for idx, j in enumerate(matches[:5]):
+            child_tags = [_strip_xml_namespace(c.tag) for c in list(j)]
+            debug_log(f"  occurrence #{idx+1}: type='{j.attrib.get('type','')}', children={child_tags}")
+
+    return None
 
 
 class LookAtLinkTarget(Node):
@@ -147,7 +156,7 @@ class LookAtLinkTarget(Node):
     def __init__(self):
         super().__init__("look_at_link_target")
 
-        # ---- Params (simili al tuo vecchio look_at_link.py)
+        # ---- Params
         self.reference_frame = self.declare_parameter("reference_frame", "torso_link").value
         self.target_link = self.declare_parameter("target_link", "r_gripper_a").value
         self.pivot_link = self.declare_parameter("pivot_link", "neck_pitch_link").value
@@ -179,7 +188,7 @@ class LookAtLinkTarget(Node):
         self.robot_description_param = self.declare_parameter("robot_description_param", "robot_description").value
         self.robot_description_topic = self.declare_parameter("robot_description_topic", "/robot_description").value
 
-        # Limits fallback (overwritten if URDF provides them)
+        # Limits fallback
         self.yaw_min, self.yaw_max = -math.pi, math.pi
         self.pitch_min, self.pitch_max = -math.pi / 2.0, math.pi / 2.0
         self._limits_loaded = False
@@ -215,7 +224,6 @@ class LookAtLinkTarget(Node):
     def _try_load_urdf_from_param_service(self) -> bool:
         """
         Read robot_description from a remote node using the standard GetParameters service.
-        Works even if rclpy.parameter_client is missing.
         """
         service_name = f"/{self.robot_state_publisher_node}/get_parameters"
         client = self.create_client(GetParameters, service_name)
@@ -402,3 +410,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

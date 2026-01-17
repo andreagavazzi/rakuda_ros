@@ -1,15 +1,37 @@
 #!/usr/bin/env python3
+"""
+head_motion_filter.py
+
+A motion shaper / filter for a 2-DOF head gimbal commanded via
+position_controllers/JointGroupPositionController.
+
+- Subscribes:  /head_target  (Float64MultiArray)  [yaw, pitch]  rad
+- Publishes:   /head_controller/commands (Float64MultiArray) [yaw, pitch] rad
+
+Core features:
+- Startup state machine: WAIT_JS -> HOMING -> TRACKING (optional homing)
+- 1st order smoothing (tau) + velocity clamp + acceleration clamp
+- Optional clamp to URDF kinematic joint limits (NOT ros2_control joints)
+- Optional target timeout behavior (hold/home)
+- Graceful shutdown (Ctrl+C) without rclpy waitset errors
+"""
+
 import math
+import re
 import signal
 import xml.etree.ElementTree as ET
 
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
+from rclpy.executors import SingleThreadedExecutor
 
 from std_msgs.msg import Float64MultiArray
 from std_msgs.msg import String as StringMsg
 from sensor_msgs.msg import JointState
+
+from rcl_interfaces.srv import GetParameters
+from rcl_interfaces.msg import ParameterType
 
 
 def clamp(x, lo, hi):
@@ -20,56 +42,121 @@ def _strip_xml_namespace(tag: str) -> str:
     return tag.split("}", 1)[1] if "}" in tag else tag
 
 
-def parse_joint_limits_from_urdf(urdf_xml: str, joint_name: str):
+def _parse_float_expr(s: str) -> float:
     """
-    Returns (lower, upper) if present.
-    If joint is 'continuous' or missing limits -> None.
+    Parse numeric values from URDF/xacro.
+    Supports:
+      - "0.660"
+      - "${0.660}"
+      - "${radians(30)}"
+      - "${pi/6}"
+    """
+    s = s.strip()
+
+    # Fast path
+    try:
+        return float(s)
+    except Exception:
+        pass
+
+    # Strip ${...}
+    if s.startswith("${") and s.endswith("}"):
+        s = s[2:-1].strip()
+
+    allowed = {
+        "pi": math.pi,
+        "radians": math.radians,
+        "deg2rad": lambda d: d * math.pi / 180.0,
+        "abs": abs,
+        "min": min,
+        "max": max,
+    }
+
+    # safety filter
+    if not re.match(r"^[0-9\.\+\-\*\/\(\)\s,a-zA-Z_]+$", s):
+        raise ValueError(f"Unsupported numeric expression: {s}")
+
+    return float(eval(s, {"__builtins__": {}}, allowed))
+
+
+def _top_level_urdf_joints(root: ET.Element):
+    """
+    Return ONLY URDF kinematic joints: direct children of <robot>.
+    This avoids ros2_control joints inside <ros2_control> blocks.
+    """
+    return [c for c in list(root) if _strip_xml_namespace(c.tag) == "joint"]
+
+
+def parse_joint_limits_from_urdf(urdf_xml: str, joint_name: str, *, debug_log=None):
+    """
+    Returns (lower, upper) for the URDF kinematic joint (top-level).
+    Ignores ros2_control joints.
     """
     root = ET.fromstring(urdf_xml)
+    joints = _top_level_urdf_joints(root)
 
-    for joint in root.iter():
-        if _strip_xml_namespace(joint.tag) != "joint":
-            continue
-        if joint.attrib.get("name") != joint_name:
-            continue
+    matches = [j for j in joints if j.attrib.get("name") == joint_name]
+    if not matches:
+        if debug_log:
+            names = [j.attrib.get("name", "") for j in joints if j.attrib.get("name", "")]
+            similar = [n for n in names if joint_name in n or n in joint_name or "neck" in n]
+            debug_log(f"URDF joint '{joint_name}' not found among top-level joints. Similar: {similar[:30]}")
+        return None
 
-        jtype = joint.attrib.get("type", "")
+    # If duplicates exist, pick first with usable limit
+    for idx, j in enumerate(matches):
+        jtype = j.attrib.get("type", "")
         if jtype == "continuous":
-            return None
+            continue
 
         limit_el = None
-        for child in list(joint):
+        for child in list(j):
             if _strip_xml_namespace(child.tag) == "limit":
                 limit_el = child
                 break
-
         if limit_el is None:
-            return None
+            continue
 
-        lower = limit_el.attrib.get("lower", None)
-        upper = limit_el.attrib.get("upper", None)
-        if lower is None or upper is None:
-            return None
+        lower_s = limit_el.attrib.get("lower", None)
+        upper_s = limit_el.attrib.get("upper", None)
+        if lower_s is None or upper_s is None:
+            continue
 
-        return float(lower), float(upper)
+        try:
+            lower = _parse_float_expr(lower_s)
+            upper = _parse_float_expr(upper_s)
+            if debug_log and len(matches) > 1:
+                debug_log(f"URDF joint '{joint_name}': using occurrence #{idx+1}/{len(matches)} with <limit>.")
+            return lower, upper
+        except Exception as e:
+            if debug_log:
+                debug_log(
+                    f"URDF joint '{joint_name}' limit parse failed: lower='{lower_s}' upper='{upper_s}' err={e}"
+                )
+            continue
+
+    if debug_log:
+        debug_log(f"URDF joint '{joint_name}' found {len(matches)} time(s) but none had a usable <limit>.")
+        for idx, j in enumerate(matches[:5]):
+            child_tags = [_strip_xml_namespace(c.tag) for c in list(j)]
+            debug_log(f"  occurrence #{idx+1}: type='{j.attrib.get('type','')}', children={child_tags}")
 
     return None
 
 
 class HeadGimbalMotionFilter(Node):
     """
-    Motion filter / shaper for a 2DOF head gimbal driven by JointGroupPositionController.
+    Motion filter / shaper for a 2DOF head gimbal.
 
-    Topics (default):
-      - Sub: /head_target (std_msgs/Float64MultiArray)  [yaw, pitch] rad
-      - Pub: /head_controller/commands (std_msgs/Float64MultiArray) [yaw, pitch] rad
+    State machine:
+      - WAIT_JS: wait for /joint_states so internal state starts from real pose
+      - HOMING: (optional) move to home pose
+      - TRACKING: follow /head_target (filtered + limited)
 
-    Features:
-      - Startup: WAIT_JS -> HOMING -> TRACKING (optional homing)
-      - 1st order smoothing (tau) + velocity clamp + acceleration clamp
-      - Optional clamp to URDF joint limits
-      - Optional target timeout behavior (hold/home)
-      - Graceful shutdown (Ctrl+C)
+    Optional URDF clamp:
+      - Reads robot_description from /robot_state_publisher/get_parameters
+        OR falls back to /robot_description topic.
+      - Extracts limits ONLY from URDF top-level joints (ignores ros2_control joints).
     """
 
     def __init__(self):
@@ -86,16 +173,16 @@ class HeadGimbalMotionFilter(Node):
 
         # ---------------- Motion params ----------------
         self.declare_parameter("rate_hz", 60.0)
-        self.declare_parameter("tau", 0.28)          # smoothing (sec) - “human-like” start
-        self.declare_parameter("max_vel", 1.4)       # rad/s
-        self.declare_parameter("max_acc", 6.0)       # rad/s^2
+        self.declare_parameter("tau", 0.28)       # seconds
+        self.declare_parameter("max_vel", 1.5)    # rad/s
+        self.declare_parameter("max_acc", 6.0)    # rad/s^2
 
         self.rate_hz = float(self.get_parameter("rate_hz").value)
         self.tau = float(self.get_parameter("tau").value)
         self.max_vel = float(self.get_parameter("max_vel").value)
         self.max_acc = float(self.get_parameter("max_acc").value)
 
-        # Optional: ignore micro target noise (rad)
+        # ignore tiny changes in target
         self.declare_parameter("target_deadband_rad", 0.0)
         self.target_deadband = float(self.get_parameter("target_deadband_rad").value)
 
@@ -111,8 +198,7 @@ class HeadGimbalMotionFilter(Node):
         self.declare_parameter("home_tolerance", 0.02)         # rad
         self.declare_parameter("home_timeout_sec", 4.0)
         self.declare_parameter("wait_joint_states_timeout_sec", 2.0)
-
-        self.declare_parameter("home_max_vel", 0.25)            # rad/s, <=0 -> use max_vel
+        self.declare_parameter("home_max_vel", 0.3)            # rad/s (<=0 -> max_vel)
         self.declare_parameter("hold_after_homing_until_new_target", True)
 
         self.home_on_start = bool(self.get_parameter("home_on_start").value)
@@ -132,11 +218,8 @@ class HeadGimbalMotionFilter(Node):
             raise ValueError(f"home_positions must be [yaw, pitch], got {self.home_positions}")
 
         # ---------------- Target timeout behavior ----------------
-        # If no new target arrives for target_timeout_sec:
-        #   - "hold": keep current pose
-        #   - "home": go home_positions (still filtered)
-        self.declare_parameter("target_timeout_sec", 0.0)  # 0 = disabled
-        self.declare_parameter("on_target_timeout", "hold")  # hold|home
+        self.declare_parameter("target_timeout_sec", 0.0)     # 0 = disabled
+        self.declare_parameter("on_target_timeout", "hold")   # hold|home
 
         self.target_timeout = float(self.get_parameter("target_timeout_sec").value)
         self.on_target_timeout = str(self.get_parameter("on_target_timeout").value).lower().strip()
@@ -154,12 +237,6 @@ class HeadGimbalMotionFilter(Node):
         self.robot_description_param = str(self.get_parameter("robot_description_param").value)
         self.robot_description_topic = str(self.get_parameter("robot_description_topic").value)
 
-        self.yaw_min = -math.inf
-        self.yaw_max = +math.inf
-        self.pitch_min = -math.inf
-        self.pitch_max = +math.inf
-        self._limits_loaded = False
-
         # ---------------- Shutdown behavior ----------------
         self.declare_parameter("publish_hold_on_shutdown", True)
         self.publish_hold_on_shutdown = bool(self.get_parameter("publish_hold_on_shutdown").value)
@@ -167,7 +244,7 @@ class HeadGimbalMotionFilter(Node):
         # ---------------- Internal state ----------------
         self.dt_nominal = 1.0 / max(1.0, self.rate_hz)
 
-        # joint_states cache
+        # joint_states cache (avoid msg.name.index every time)
         self._have_js = False
         self._js_yaw = 0.0
         self._js_pitch = 0.0
@@ -190,15 +267,19 @@ class HeadGimbalMotionFilter(Node):
         # phase
         self._t_start = self.get_clock().now()
         self._t_homing_start = None
-
-        if self.home_on_start:
-            self._phase = "WAIT_JS"
-        else:
-            self._phase = "TRACKING"
+        self._phase = "WAIT_JS" if self.home_on_start else "TRACKING"
+        if self._phase == "TRACKING":
             self._target_seq_at_tracking_enable = self._target_seq
 
         # timing for real dt
         self._last_tick_time = None
+
+        # URDF limits (default: no clamp)
+        self.yaw_min = -math.inf
+        self.yaw_max = +math.inf
+        self.pitch_min = -math.inf
+        self.pitch_max = +math.inf
+        self._limits_loaded = False
 
         # ---------------- ROS interfaces ----------------
         self.sub_js = self.create_subscription(JointState, self.joint_states_topic, self.on_joint_states, 10)
@@ -213,16 +294,18 @@ class HeadGimbalMotionFilter(Node):
         self.timer = self.create_timer(self.dt_nominal, self.tick)
 
         self.get_logger().info(
-            f"[head_gimbal_motion_filter] rate={self.rate_hz}Hz tau={self.tau}s max_vel={self.max_vel}rad/s max_acc={self.max_acc}rad/s^2 "
-            f"| home_on_start={self.home_on_start} home={self.home_positions} tol={self.home_tol} (home_max_vel={self.home_max_vel}) "
+            f"[head_gimbal_motion_filter] rate={self.rate_hz}Hz tau={self.tau}s "
+            f"max_vel={self.max_vel}rad/s max_acc={self.max_acc}rad/s^2 "
+            f"| home_on_start={self.home_on_start} home={self.home_positions} tol={self.home_tol} "
+            f"(home_max_vel={self.home_max_vel}) "
             f"| target_timeout={self.target_timeout}s on_timeout={self.on_target_timeout} "
             f"| clamp_to_urdf_limits={self.clamp_to_urdf_limits}"
         )
 
     # -------- URDF LIMITS --------
     def _init_urdf_limits(self):
-        # Try remote param first; fallback to /robot_description topic (transient local)
-        if self._try_load_urdf_from_param():
+        # Try remote param via standard GetParameters service; fallback to /robot_description topic.
+        if self._try_load_urdf_from_param_service():
             self._limits_loaded = True
             return
 
@@ -234,39 +317,37 @@ class HeadGimbalMotionFilter(Node):
         self._urdf_sub = self.create_subscription(
             StringMsg, self.robot_description_topic, self._on_urdf_msg, qos
         )
-        self.get_logger().info(
-            f"URDF limits: param not available, waiting on topic {self.robot_description_topic} ..."
-        )
+        self.get_logger().info(f"URDF limits: param service not available, waiting on {self.robot_description_topic} ...")
 
-    def _try_load_urdf_from_param(self) -> bool:
-        try:
-            from rclpy.parameter_client import AsyncParametersClient
+    def _try_load_urdf_from_param_service(self) -> bool:
+        service_name = f"/{self.robot_state_publisher_node}/get_parameters"
+        client = self.create_client(GetParameters, service_name)
 
-            client = AsyncParametersClient(self, self.robot_state_publisher_node)
-            if not client.service_is_ready():
-                client.wait_for_service(timeout_sec=0.5)
-
-            fut = client.get_parameters([self.robot_description_param])
-            rclpy.spin_until_future_complete(self, fut, timeout_sec=1.0)
-            if not fut.done() or fut.result() is None:
-                return False
-
-            vals = fut.result().values
-            if not vals or vals[0].type_ == 0:  # NOT_SET
-                return False
-
-            urdf_xml = vals[0].string_value
-            if not urdf_xml.strip():
-                return False
-
-            self._apply_limits_from_urdf(urdf_xml)
-            self.get_logger().info(
-                f"URDF limits loaded from param: {self.robot_state_publisher_node}.{self.robot_description_param}"
-            )
-            return True
-        except Exception as e:
-            self.get_logger().warn(f"URDF param load failed: {e}")
+        if not client.wait_for_service(timeout_sec=0.8):
             return False
+
+        req = GetParameters.Request()
+        req.names = [self.robot_description_param]
+        fut = client.call_async(req)
+        rclpy.spin_until_future_complete(self, fut, timeout_sec=1.0)
+
+        res = fut.result()
+        if res is None or not res.values:
+            return False
+
+        val = res.values[0]
+        if val.type != ParameterType.PARAMETER_STRING:
+            return False
+
+        urdf_xml = val.string_value
+        if not urdf_xml.strip():
+            return False
+
+        self._apply_limits_from_urdf(urdf_xml)
+        self.get_logger().info(
+            f"URDF limits loaded from param service: {self.robot_state_publisher_node}.{self.robot_description_param}"
+        )
+        return True
 
     def _on_urdf_msg(self, msg: StringMsg):
         if self._limits_loaded:
@@ -281,16 +362,23 @@ class HeadGimbalMotionFilter(Node):
             self.get_logger().error(f"URDF topic parse failed: {e}")
 
     def _apply_limits_from_urdf(self, urdf_xml: str):
-        yaw_lim = parse_joint_limits_from_urdf(urdf_xml, self.yaw_joint)
-        pitch_lim = parse_joint_limits_from_urdf(urdf_xml, self.pitch_joint)
+        dbg = lambda s: self.get_logger().warn("[URDF DEBUG] " + s)
+
+        yaw_lim = parse_joint_limits_from_urdf(urdf_xml, self.yaw_joint, debug_log=dbg)
+        pitch_lim = parse_joint_limits_from_urdf(urdf_xml, self.pitch_joint, debug_log=dbg)
 
         if yaw_lim is not None:
             self.yaw_min, self.yaw_max = yaw_lim
+        else:
+            self.get_logger().warn(f"No URDF limits for {self.yaw_joint} (continuous/missing/parse).")
+
         if pitch_lim is not None:
             self.pitch_min, self.pitch_max = pitch_lim
+        else:
+            self.get_logger().warn(f"No URDF limits for {self.pitch_joint} (continuous/missing/parse).")
 
         self.get_logger().info(
-            f"URDF limits:\n"
+            "URDF limits:\n"
             f"  {self.yaw_joint}:   [{self.yaw_min:.3f}, {self.yaw_max:.3f}]\n"
             f"  {self.pitch_joint}: [{self.pitch_min:.3f}, {self.pitch_max:.3f}]"
         )
@@ -366,7 +454,6 @@ class HeadGimbalMotionFilter(Node):
             return self.dt_nominal
         dt = (now - self._last_tick_time).nanoseconds / 1e9
         self._last_tick_time = now
-        # clamp dt to avoid crazy jumps if system stalls
         return clamp(dt, 1e-4, 0.2)
 
     # -------- Main loop --------
@@ -383,7 +470,7 @@ class HeadGimbalMotionFilter(Node):
         if self._phase == "WAIT_JS":
             elapsed = (now - self._t_start).nanoseconds / 1e9
             if elapsed >= self.wait_js_timeout:
-                # Fallback init yaw/pitch to 0 (as your original did)
+                # Fallback init
                 self.yaw = 0.0
                 self.pitch = 0.0
                 self.v_yaw = 0.0
@@ -412,27 +499,25 @@ class HeadGimbalMotionFilter(Node):
         if self._phase == "TRACKING":
             vel_limit = self.max_vel
 
-            # optional timeout behavior (only if enabled)
+            # optional timeout behavior
+            timed_out = False
             if self.target_timeout > 0.0:
                 t_since = (now - self._last_target_time).nanoseconds / 1e9
                 if t_since >= self.target_timeout:
+                    timed_out = True
                     if self.on_target_timeout == "home":
                         target_yaw = self.home_positions[0]
                         target_pitch = self.home_positions[1]
-                    else:  # hold
+                    else:
                         target_yaw = self.yaw
                         target_pitch = self.pitch
-                else:
-                    # normal behavior below
-                    pass
 
             # hold-after-homing: ignore any old target until a new one arrives
             if self.hold_after_homing_until_new_target and self._target_seq <= self._target_seq_at_tracking_enable:
                 target_yaw = self.home_positions[0]
                 target_pitch = self.home_positions[1]
             else:
-                # if timeout says hold/home, it already set target_* above
-                if not (self.target_timeout > 0.0 and (now - self._last_target_time).nanoseconds / 1e9 >= self.target_timeout):
+                if not timed_out:
                     target_yaw = self._last_target_yaw
                     target_pitch = self._last_target_pitch
 
@@ -487,9 +572,6 @@ class HeadGimbalMotionFilter(Node):
 
 
 def main():
-    import signal
-    from rclpy.executors import SingleThreadedExecutor
-
     rclpy.init()
     node = HeadGimbalMotionFilter()
     executor = SingleThreadedExecutor()
@@ -498,20 +580,19 @@ def main():
     stop = {"flag": False}
 
     def _request_stop(signum=None, frame=None):
-        # Non chiamare rclpy.shutdown() qui!
         if stop["flag"]:
             return
         stop["flag"] = True
         try:
-            node.get_logger().info("Shutdown requested (Ctrl+C). Closing.")
+            node.get_logger().info("Shutdown requested (Ctrl+C).")
         except Exception:
             pass
         try:
-            node.stop_cleanly()   # cancella timer + (opzionale) publish hold
+            node.stop_cleanly()
         except Exception:
             pass
         try:
-            executor.wake()       # interrompe l'attesa del waitset
+            executor.wake()
         except Exception:
             pass
 
@@ -519,36 +600,34 @@ def main():
     signal.signal(signal.SIGTERM, _request_stop)
 
     try:
-        # Spin controllato: usciamo quando arriva SIGINT/SIGTERM
         while rclpy.ok() and not stop["flag"]:
             executor.spin_once(timeout_sec=0.2)
     except KeyboardInterrupt:
         _request_stop()
     finally:
-        # Cleanup ordinato
         try:
             node.stop_cleanly()
         except Exception:
             pass
-
         try:
             executor.remove_node(node)
         except Exception:
             pass
-
         try:
             node.destroy_node()
         except Exception:
             pass
-
         try:
             executor.shutdown()
         except Exception:
             pass
-
-        # Shutdown ROS CONTEXT solo qui, a spin finito
         try:
             if rclpy.ok():
                 rclpy.shutdown()
         except Exception:
             pass
+
+
+if __name__ == "__main__":
+    main()
+
