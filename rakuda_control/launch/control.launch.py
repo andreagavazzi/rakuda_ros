@@ -40,19 +40,19 @@ def generate_launch_description():
         output='log'
     )
 
-    # # Disabilita torque dai Dynamixel delle braccia
-    # torque_except_node = Node(
-    #     package="rakuda_tools",
-    #     executable="torque_except",
-    #     name="torque_except",
-    #     output="log",
-    # )
+    # Disabilita torque dai Dynamixel delle braccia
+    torque_except_node = Node(
+        package="rakuda_tools",
+        executable="torque_except",
+        name="torque_except",
+        output="log",
+    )
 
     return LaunchDescription([
         ros2_control_node,
         joint_state_broadcaster_spawner,
         torso_controller_spawner,
         head_controller_spawner,
-        #torque_except_node,
+        torque_except_node,
     ])
 
