@@ -1,8 +1,9 @@
 # rakuda_ros
 
-ROS2 repository for **Rakuda**, containing bringup, control, head pointing action, and small utility tools.
+ROS2 repository for **Rakuda**
 
-> Target ROS 2 distro: **Humble**
+> [!WARNING]  
+> The repository is currently in heavy development.
 
 ---
 
