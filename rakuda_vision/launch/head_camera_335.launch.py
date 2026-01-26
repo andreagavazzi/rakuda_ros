@@ -10,7 +10,7 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
-# limitations under the License.
+# limitations under the License. 
 
 import os
 from ament_index_python import get_package_share_directory
@@ -30,17 +30,18 @@ def generate_launch_description():
                 os.path.join(orbbec_launch_dir, 'gemini_330_series.launch.py')
             ),
             launch_arguments={
-                'color_width': '1280',
-                'color_height': '720',
+                'color_width': '640',
+                'color_height': '480',
                 'color_fps': '30',
-                'depth_width': '1280',
-                'depth_height': '720',
+                'depth_width': '640',
+                'depth_height': '480',
                 'depth_fps': '30',
                 'device_preset': LaunchConfiguration('device_preset'),
                 'align_depth': 'true',
                 'spatial_filter': 'true',
                 'temporal_filter': 'true',
                 'hole_filling_filter': 'true',
+                'publish_tf': 'false',
             }.items()
         )
     ])
