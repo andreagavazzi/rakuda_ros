@@ -197,7 +197,7 @@ class HeadGimbalMotionFilter(Node):
         self.declare_parameter("home_positions", [0.0, 0.0])   # [yaw, pitch]
         self.declare_parameter("home_tolerance", 0.02)         # rad
         self.declare_parameter("home_timeout_sec", 4.0)
-        self.declare_parameter("wait_joint_states_timeout_sec", 2.0)
+        self.declare_parameter("wait_joint_states_timeout_sec", 3.0)
         self.declare_parameter("home_max_vel", 0.3)            # rad/s (<=0 -> max_vel)
         self.declare_parameter("hold_after_homing_until_new_target", True)
 
