@@ -43,7 +43,7 @@ def generate_launch_description():
         emulate_tty=True,
     )
 
-    # Piccoli delay per dare tempo ai nodi "a monte" di pubblicare parametri / TF.
+    # Delay per dare tempo ai nodi "a monte" di pubblicare parametri / TF.
     # Se vuoi partire subito, porta i period a 0.0.
     delay_desc_to_control = 1.5
     delay_control_to_filter = 1.0
