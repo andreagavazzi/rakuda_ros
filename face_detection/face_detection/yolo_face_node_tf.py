@@ -63,7 +63,6 @@ class YoloFaceNode(Node):
         self.declare_parameter("min_depth_m", 0.2)
         self.declare_parameter("max_depth_m", 3.0)
         self.declare_parameter("assumed_depth_m", 1.2)  # fallback if depth not available
-        self.declare_parameter("no_face_timeout_s", 10.0)  # after this, publish (0,0,0)
 
         input_topic = self.get_parameter("input_topic").value
         output_topic = self.get_parameter("output_topic").value
@@ -88,7 +87,6 @@ class YoloFaceNode(Node):
         self.min_depth_m = float(self.get_parameter("min_depth_m").value)
         self.max_depth_m = float(self.get_parameter("max_depth_m").value)
         self.assumed_depth_m = float(self.get_parameter("assumed_depth_m").value)
-        self.no_face_timeout_s = float(self.get_parameter("no_face_timeout_s").value)
 
         # -------- Load model once --------
         if not os.path.isfile(self.model_path):
@@ -169,12 +167,6 @@ class YoloFaceNode(Node):
         )
 
         self._frame_count = 0
-
-        # Keep-alive for TF: remember last valid face position so 'face_target' never disappears
-        self._last_face_xyz = None  # (x,y,z) in parent_frame
-        self._last_face_parent = None
-        self._start_time = self.get_clock().now()
-        self._last_face_seen_time = None  # rclpy.time.Time (node clock)
 
     # ----------------- Depth/Info callbacks -----------------
     def _camera_info_cb(self, msg: CameraInfo):
@@ -276,31 +268,11 @@ class YoloFaceNode(Node):
         t.transform.rotation.w = 1.0
         self.tf_broadcaster.sendTransform(t)
 
-    def _resolve_parent_frame(self, msg: Image) -> str:
-        if self.parent_frame.strip():
-            return self.parent_frame.strip()
-        if self._cam_info is not None and getattr(self._cam_info.header, 'frame_id', ''):
-            return self._cam_info.header.frame_id
-        return msg.header.frame_id
-
-    def _no_face_elapsed_s(self) -> float:
-        now = self.get_clock().now()
-        ref = self._last_face_seen_time if self._last_face_seen_time is not None else self._start_time
-        return (now - ref).nanoseconds / 1e9
-
     # ----------------- Main RGB callback -----------------
     def image_cb(self, msg: Image):
-        # Throttle: elabora 1 frame ogni N (ma continuiamo a ripubblicare TF per keep-alive)
+        # Throttle: elabora 1 frame ogni N
         self._frame_count += 1
         if self.process_every_n > 1 and (self._frame_count % self.process_every_n) != 0:
-            # Keep TF alive even when skipping inference
-            if self.publish_tf:
-                if self._no_face_elapsed_s() >= self.no_face_timeout_s:
-                    parent = self._resolve_parent_frame(msg)
-                    self._broadcast_face_tf(parent, self.face_frame_id, msg.header.stamp, 0.0, 0.0, 0.0)
-                elif self._last_face_xyz is not None and self._last_face_parent is not None:
-                    x, y, z = self._last_face_xyz
-                    self._broadcast_face_tf(self._last_face_parent, self.face_frame_id, msg.header.stamp, x, y, z)
             return
 
         # Converti a OpenCV (BGR)
@@ -441,9 +413,6 @@ class YoloFaceNode(Node):
                 if p is not None:
                     x, y, z, used_depth = p
                     self._broadcast_face_tf(parent, self.face_frame_id, msg.header.stamp, x, y, z)
-                    self._last_face_xyz = (x, y, z)
-                    self._last_face_parent = parent
-                    self._last_face_seen_time = self.get_clock().now()
             else:
                 # publish all faces: face_0, face_1, ...
                 for idx, (score, area, cx, cy) in enumerate(candidates):
@@ -454,19 +423,6 @@ class YoloFaceNode(Node):
                     x, y, z, used_depth = p
                     child = f"{self.face_frame_prefix}{idx}"
                     self._broadcast_face_tf(parent, child, msg.header.stamp, x, y, z)
-                    if idx == 0:
-                        self._last_face_xyz = (x, y, z)
-                        self._last_face_parent = parent
-                        self._last_face_seen_time = self.get_clock().now()
-        # Keep-alive when no face detected
-        if self.publish_tf and (not candidates):
-            if self._no_face_elapsed_s() >= self.no_face_timeout_s:
-                parent = self._resolve_parent_frame(msg)
-                self._broadcast_face_tf(parent, self.face_frame_id, msg.header.stamp, 0.0, 0.0, 0.0)
-            elif self._last_face_xyz is not None and self._last_face_parent is not None:
-                x, y, z = self._last_face_xyz
-                self._broadcast_face_tf(self._last_face_parent, self.face_frame_id, msg.header.stamp, x, y, z)
-
 
 
 def main():
