@@ -50,6 +50,7 @@ def generate_launch_description():
         output='log'
     )
 
+    # 5. Spawner Left Arm
     #left_arm_controller_spawner = Node(
     #    package='controller_manager',
     #    executable='spawner',
@@ -57,6 +58,7 @@ def generate_launch_description():
     #    output='log'
     #)
     
+    # 6. Spawner Right Arm
     #right_arm_controller_spawner = Node(
     #    package='controller_manager',
     #    executable='spawner',
@@ -64,7 +66,7 @@ def generate_launch_description():
     #    output='log'
     #)
 
-    # 5. Catena eventi
+    # 7. Catena eventi
     # Quando joint_state_broadcaster finisce (esce), allora avvia i controller
     delay_controllers_after_joint_state = RegisterEventHandler(
         event_handler=OnProcessExit(
