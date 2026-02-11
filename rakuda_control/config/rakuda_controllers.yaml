@@ -8,6 +8,10 @@ controller_manager:
 
     head_controller:
       type: position_controllers/JointGroupPositionController
+      interface_name: position
+
+    left_arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
@@ -53,4 +57,26 @@ head_controller:
 
     state_publish_rate: 50.0
     command_timeout: 0.5
+
+
+left_arm_controller:
+  ros__parameters:
+    joints:
+      - l_arm_joint1
+      - l_arm_joint2
+      - l_arm_joint3
+      - l_arm_joint4
+      - l_arm_joint5
+      - l_arm_joint6
+
+    command_interfaces:
+      - position
+
+    state_interfaces:
+      - position
+      - velocity
+
+    constraints:
+      stopped_velocity_tolerance: 0.2
+      goal_time: 0.5
 

@@ -51,20 +51,20 @@ def generate_launch_description():
     )
 
     # 5. Spawner Left Arm
-    #left_arm_controller_spawner = Node(
-    #    package='controller_manager',
-    #    executable='spawner',
-    #    arguments=['left_arm_controller'],
-    #    output='log'
-    #)
+    left_arm_controller_spawner = Node(
+       package='controller_manager',
+       executable='spawner',
+       arguments=['left_arm_controller'],
+       output='log'
+    )
     
     # 6. Spawner Right Arm
-    #right_arm_controller_spawner = Node(
+    # right_arm_controller_spawner = Node(
     #    package='controller_manager',
     #    executable='spawner',
     #    arguments=['right_arm_controller'],
     #    output='log'
-    #)
+    # )
 
     # 7. Catena eventi
     # Quando joint_state_broadcaster finisce (esce), allora avvia i controller
@@ -74,7 +74,7 @@ def generate_launch_description():
             on_exit=[
                 torso_controller_spawner,
                 head_controller_spawner,
-                #left_arm_controller_spawner,
+                left_arm_controller_spawner,
                 #right_arm_controller_spawner,
             ]
         )
