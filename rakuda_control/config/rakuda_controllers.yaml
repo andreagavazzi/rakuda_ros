@@ -13,6 +13,9 @@ controller_manager:
     left_arm_controller:
       type: joint_trajectory_controller/JointTrajectoryController
 
+    right_arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
 
@@ -80,3 +83,23 @@ left_arm_controller:
       stopped_velocity_tolerance: 0.2
       goal_time: 0.5
 
+left_arm_controller:
+  ros__parameters:
+    joints:
+      - r_arm_joint1
+      - r_arm_joint2
+      - r_arm_joint3
+      - r_arm_joint4
+      - r_arm_joint5
+      - r_arm_joint6
+
+    command_interfaces:
+      - position
+
+    state_interfaces:
+      - position
+      - velocity
+
+    constraints:
+      stopped_velocity_tolerance: 0.2
+      goal_time: 0.5
