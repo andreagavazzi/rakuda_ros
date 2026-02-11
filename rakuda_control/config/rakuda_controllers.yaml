@@ -83,7 +83,7 @@ left_arm_controller:
       stopped_velocity_tolerance: 0.2
       goal_time: 0.5
 
-left_arm_controller:
+right_arm_controller:
   ros__parameters:
     joints:
       - r_arm_joint1
