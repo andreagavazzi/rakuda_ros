@@ -9,8 +9,9 @@ setup(
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/config', ['config/initial_position.yaml']),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'pyyaml'],
     zip_safe=True,
     maintainer='andrea',
     maintainer_email='andrea@todo.todo',
@@ -23,6 +24,7 @@ setup(
             'torque_except = rakuda_tools.torque_except:main',
             'look_at_link_target = rakuda_tools.look_at_link_target:main',
             'head_gimbal_keyboard = rakuda_tools.head_gimbal_keyboard:main',
+            "pose_player = rakuda_tools.pose_player:main",
         ],
     },
 )

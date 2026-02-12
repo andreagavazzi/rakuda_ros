@@ -71,6 +71,7 @@ left_arm_controller:
       - l_arm_joint4
       - l_arm_joint5
       - l_arm_joint6
+      - l_gripper_joint
 
     command_interfaces:
       - position
@@ -79,6 +80,7 @@ left_arm_controller:
       - position
       - velocity
 
+    allow_partial_joints_goal: true
     constraints:
       stopped_velocity_tolerance: 0.2
       goal_time: 0.5
@@ -92,6 +94,7 @@ right_arm_controller:
       - r_arm_joint4
       - r_arm_joint5
       - r_arm_joint6
+      - r_gripper_joint
 
     command_interfaces:
       - position
@@ -100,6 +103,7 @@ right_arm_controller:
       - position
       - velocity
 
+    allow_partial_joints_goal: true
     constraints:
       stopped_velocity_tolerance: 0.2
       goal_time: 0.5
