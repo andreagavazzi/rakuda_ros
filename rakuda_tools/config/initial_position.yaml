@@ -151,7 +151,7 @@ poses:
         positions: [0.0]
 
   close_gripper:
-    move_time: 1.0         # secondi
+    move_time: 0.5         # secondi
     unit: rad              # rad 
     controllers:
       left_arm_controller:
@@ -165,7 +165,7 @@ poses:
         positions: [0.0]
 
   open_gripper:
-    move_time: 1.0         # secondi
+    move_time: 0.5         # secondi
     unit: rad              # rad 
     controllers:
       left_arm_controller:
