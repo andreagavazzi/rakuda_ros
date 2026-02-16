@@ -1,6 +1,6 @@
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from launch.actions import RegisterEventHandler
+from launch.actions import RegisterEventHandler, ExecuteProcess, TimerAction
 from launch.event_handlers import OnProcessExit
 from ament_index_python.packages import get_package_share_directory
 import os
@@ -50,6 +50,16 @@ def generate_launch_description():
         output='log'
     )
 
+
+    # 4a. Spawner Head Position parte inattivo
+    head_position_controller_spawner = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=['head_position_controller', "--inactive"],
+        output='log'
+    )
+
+
     # 5. Spawner Left Arm
     left_arm_controller_spawner = Node(
        package='controller_manager',
@@ -66,6 +76,30 @@ def generate_launch_description():
        output='log'
     )
 
+
+    # kick head
+    kick_head = ExecuteProcess(
+        cmd=[
+            "ros2", "topic", "pub", "--once",
+            "/head_controller/joint_trajectory",
+            "trajectory_msgs/msg/JointTrajectory",
+            "{joint_names: ['neck_yaw_joint','neck_pitch_joint'], "
+            "points: [{positions: [0.0, -0.35], time_from_start: {sec: 2}}]}",
+        ],
+        output="screen",
+    )
+
+    kick_after_spawn = RegisterEventHandler(
+        OnProcessExit(
+            target_action=head_controller_spawner,
+            on_exit=[
+                TimerAction(period=0.5, actions=[kick_head]),
+            ],
+        )
+    )
+
+
+
     # 7. Catena eventi
     # Quando joint_state_broadcaster finisce (esce), allora avvia i controller
     delay_controllers_after_joint_state = RegisterEventHandler(
@@ -74,15 +108,21 @@ def generate_launch_description():
             on_exit=[
                 torso_controller_spawner,
                 head_controller_spawner,
+                head_position_controller_spawner,
                 left_arm_controller_spawner,
-                right_arm_controller_spawner,
-            ]
+                right_arm_controller_spawner
+              ]
         )
     )
+
+
+
+
 
     # 6. Return
     return LaunchDescription([
         ros2_control_node, # Parte subito
         joint_state_broadcaster_spawner, # Parte subito (ha già un timeout interno che aspetta il manager)
         delay_controllers_after_joint_state, # Contiene gli spawner dei controller che partono dopo il joint_state_broadcaster
+        kick_after_spawn, # Dopo aver avviato i controller, esegue il kick alla testa
     ])

@@ -7,9 +7,12 @@ controller_manager:
       type: joint_trajectory_controller/JointTrajectoryController
 
     head_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    head_position_controller:
       type: position_controllers/JointGroupPositionController
       interface_name: position
-
+    
     left_arm_controller:
       type: joint_trajectory_controller/JointTrajectoryController
 
@@ -49,6 +52,35 @@ torso_controller:
 
 
 head_controller:
+  ros__parameters:
+    joints:
+      - neck_yaw_joint
+      - neck_pitch_joint
+
+    command_interfaces:
+      - position
+
+    state_interfaces:
+      - position
+      - velocity
+
+    state_publish_rate: 50.0
+    action_monitor_rate: 20.0
+
+    allow_partial_joints_goal: true
+    allow_nonzero_velocity_at_trajectory_end: false
+    open_loop_control: false
+    interpolate_from_desired_state: true
+
+    constraints:
+      stopped_velocity_tolerance: 0.2
+      goal_time: 0.5
+      waist_yaw_joint:
+        trajectory: 0.2
+        goal: 0.05
+
+
+head_position_controller:
   ros__parameters:
     joints:
       - neck_yaw_joint
