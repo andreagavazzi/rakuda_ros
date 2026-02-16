@@ -50,7 +50,6 @@ def generate_launch_description():
         output='log'
     )
 
-
     # 4a. Spawner Head Position parte inattivo
     head_position_controller_spawner = Node(
         package='controller_manager',
@@ -58,7 +57,6 @@ def generate_launch_description():
         arguments=['head_position_controller', "--inactive"],
         output='log'
     )
-
 
     # 5. Spawner Left Arm
     left_arm_controller_spawner = Node(
@@ -75,7 +73,6 @@ def generate_launch_description():
        arguments=['right_arm_controller'],
        output='log'
     )
-
 
     # kick head
     kick_head = ExecuteProcess(
@@ -98,8 +95,6 @@ def generate_launch_description():
         )
     )
 
-
-
     # 7. Catena eventi
     # Quando joint_state_broadcaster finisce (esce), allora avvia i controller
     delay_controllers_after_joint_state = RegisterEventHandler(
@@ -116,10 +111,7 @@ def generate_launch_description():
     )
 
 
-
-
-
-    # 6. Return
+    # 8. Return
     return LaunchDescription([
         ros2_control_node, # Parte subito
         joint_state_broadcaster_spawner, # Parte subito (ha già un timeout interno che aspetta il manager)
