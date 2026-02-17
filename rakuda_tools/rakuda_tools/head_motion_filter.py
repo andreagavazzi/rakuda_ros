@@ -6,7 +6,13 @@ A motion shaper / filter for a 2-DOF head gimbal commanded via
 position_controllers/JointGroupPositionController.
 
 - Subscribes:  /head_target  (Float64MultiArray)  [yaw, pitch]  rad
-- Publishes:   /head_controller/commands (Float64MultiArray) [yaw, pitch] rad
+- Publishes:   /head_position_controller/commands (Float64MultiArray) [yaw, pitch] rad
+
+Startup controller switch (optional, enabled by default):
+  - Deactivate: head_controller
+  - Activate:   head_position_controller
+  This replicates the CLI behavior:
+    ros2 control switch_controllers --deactivate head_controller --activate head_position_controller
 
 Core features:
 - Startup state machine: WAIT_JS -> HOMING -> TRACKING (optional homing)
@@ -33,9 +39,35 @@ from sensor_msgs.msg import JointState
 from rcl_interfaces.srv import GetParameters
 from rcl_interfaces.msg import ParameterType
 
+from builtin_interfaces.msg import Duration
+
+try:
+    # ros2_control
+    from controller_manager_msgs.srv import SwitchController
+except Exception:
+    SwitchController = None
+
 
 def clamp(x, lo, hi):
     return max(lo, min(hi, x))
+
+
+def _duration_from_seconds(t: float) -> Duration:
+    """Convert float seconds to builtin_interfaces/Duration."""
+    d = Duration()
+    if t is None or t <= 0.0:
+        d.sec = 0
+        d.nanosec = 0
+        return d
+    sec = int(t)
+    nanosec = int((t - sec) * 1e9)
+    # Normalize
+    if nanosec >= 1_000_000_000:
+        sec += nanosec // 1_000_000_000
+        nanosec = nanosec % 1_000_000_000
+    d.sec = sec
+    d.nanosec = nanosec
+    return d
 
 
 def _strip_xml_namespace(tag: str) -> str:
@@ -165,11 +197,41 @@ class HeadGimbalMotionFilter(Node):
         # ---------------- Topics ----------------
         self.declare_parameter("joint_states_topic", "/joint_states")
         self.declare_parameter("target_topic", "/head_target")
-        self.declare_parameter("command_topic", "/head_controller/commands")
+        # Default changed to the position controller command topic, as we now
+        # auto-switch to head_position_controller at startup (see parameters below).
+        self.declare_parameter("command_topic", "/head_position_controller/commands")
 
         self.joint_states_topic = str(self.get_parameter("joint_states_topic").value)
         self.target_topic = str(self.get_parameter("target_topic").value)
         self.command_topic = str(self.get_parameter("command_topic").value)
+
+        # ---------------- Controller switch at startup ----------------
+        self.declare_parameter("auto_switch_controllers", True)
+        self.declare_parameter("controller_manager_ns", "/controller_manager")
+        self.declare_parameter("deactivate_controllers", ["head_controller"])
+        self.declare_parameter("activate_controllers", ["head_position_controller"])
+        self.declare_parameter("switch_strictness", "best_effort")  # best_effort|strict
+        self.declare_parameter("activate_asap", True)
+        self.declare_parameter("switch_timeout_sec", 5.0)
+        self.declare_parameter("wait_for_switch_service_sec", 6.0)
+        self.declare_parameter("switch_retry_period_sec", 1.0)
+
+        self.auto_switch_controllers = bool(self.get_parameter("auto_switch_controllers").value)
+        self.controller_manager_ns = str(self.get_parameter("controller_manager_ns").value).rstrip("/")
+        self.deactivate_controllers = list(self.get_parameter("deactivate_controllers").value)
+        self.activate_controllers = list(self.get_parameter("activate_controllers").value)
+        self.switch_strictness = str(self.get_parameter("switch_strictness").value).lower().strip()
+        self.activate_asap = bool(self.get_parameter("activate_asap").value)
+        self.switch_timeout_sec = float(self.get_parameter("switch_timeout_sec").value)
+        self.wait_for_switch_service_sec = float(self.get_parameter("wait_for_switch_service_sec").value)
+        self.switch_retry_period_sec = float(self.get_parameter("switch_retry_period_sec").value)
+
+        self._switch_done = (not self.auto_switch_controllers)
+        self._switch_future = None
+        self._switch_deadline = None
+        self._next_switch_attempt_time = None
+        self._switch_service_name = f"{self.controller_manager_ns}/switch_controller"
+        self._switch_client = None
 
         # ---------------- Motion params ----------------
         self.declare_parameter("rate_hz", 60.0)
@@ -267,9 +329,13 @@ class HeadGimbalMotionFilter(Node):
         # phase
         self._t_start = self.get_clock().now()
         self._t_homing_start = None
-        self._phase = "WAIT_JS" if self.home_on_start else "TRACKING"
-        if self._phase == "TRACKING":
-            self._target_seq_at_tracking_enable = self._target_seq
+        # We optionally gate startup behind a ros2_control controller switch.
+        if self.auto_switch_controllers:
+            self._phase = "WAIT_SWITCH"
+        else:
+            self._phase = "WAIT_JS" if self.home_on_start else "TRACKING"
+            if self._phase == "TRACKING":
+                self._target_seq_at_tracking_enable = self._target_seq
 
         # timing for real dt
         self._last_tick_time = None
@@ -299,8 +365,30 @@ class HeadGimbalMotionFilter(Node):
             f"| home_on_start={self.home_on_start} home={self.home_positions} tol={self.home_tol} "
             f"(home_max_vel={self.home_max_vel}) "
             f"| target_timeout={self.target_timeout}s on_timeout={self.on_target_timeout} "
-            f"| clamp_to_urdf_limits={self.clamp_to_urdf_limits}"
+            f"| clamp_to_urdf_limits={self.clamp_to_urdf_limits} "
+            f"| auto_switch_controllers={self.auto_switch_controllers}"
         )
+
+        # Kick off controller switch (non-blocking). We gate the state machine in tick()
+        # until the switch has completed (or a timeout is reached).
+        if self.auto_switch_controllers:
+            if SwitchController is None:
+                self.get_logger().error(
+                    "auto_switch_controllers=True but controller_manager_msgs is not available. "
+                    "Continuing WITHOUT switching controllers."
+                )
+                self._switch_done = True
+                self._enter_post_switch(self.get_clock().now())
+            else:
+                self._switch_client = self.create_client(SwitchController, self._switch_service_name)
+                now = self.get_clock().now()
+                self._switch_deadline = now.nanoseconds / 1e9 + self.wait_for_switch_service_sec
+                self._next_switch_attempt_time = now.nanoseconds / 1e9
+                self.get_logger().info(
+                    "Startup controller switch enabled: "
+                    f"deactivate={self.deactivate_controllers} activate={self.activate_controllers} "
+                    f"via {self._switch_service_name}"
+                )
 
     # -------- URDF LIMITS --------
     def _init_urdf_limits(self):
@@ -399,6 +487,10 @@ class HeadGimbalMotionFilter(Node):
             first = not self._have_js
             self._have_js = True
 
+            # If we're still waiting for the controller switch, just cache joint states.
+            if self._phase == "WAIT_SWITCH":
+                return
+
             if first and self._phase == "WAIT_JS":
                 # init internal state from real robot pose (avoid startup jump)
                 self.yaw = self._js_yaw
@@ -460,6 +552,11 @@ class HeadGimbalMotionFilter(Node):
     def tick(self):
         now = self.get_clock().now()
         dt = self._compute_dt(now)
+
+        # 0) Controller switch gate: do this before anything else.
+        if self._phase == "WAIT_SWITCH":
+            self._tick_controller_switch(now)
+            return
 
         # defaults: hold current pose
         target_yaw = self.yaw
@@ -553,6 +650,130 @@ class HeadGimbalMotionFilter(Node):
         cmd = Float64MultiArray()
         cmd.data = [float(self.yaw), float(self.pitch)]
         self.pub_cmd.publish(cmd)
+
+    # -------- Controller switching --------
+    def _enter_post_switch(self, now):
+        """Called once after switching controllers (or when switching is skipped)."""
+        # Reset timers so WAIT_JS timeout is relative to *after* the switch.
+        self._t_start = now
+        self._last_tick_time = None
+
+        # Initialize internal state from joint_states if we already have them.
+        if self._have_js:
+            self.yaw = float(self._js_yaw)
+            self.pitch = float(self._js_pitch)
+            self.v_yaw = 0.0
+            self.v_pitch = 0.0
+
+        if self.home_on_start:
+            if self._have_js:
+                self._t_homing_start = now
+                self._phase = "HOMING"
+                self.get_logger().info(
+                    f"Controller switch done. Init from joint_states yaw={self.yaw:.3f} pitch={self.pitch:.3f}. "
+                    "Entering HOMING."
+                )
+            else:
+                self._phase = "WAIT_JS"
+                self.get_logger().info("Controller switch done. Waiting for joint_states (WAIT_JS).")
+        else:
+            self._phase = "TRACKING"
+            self._target_seq_at_tracking_enable = self._target_seq
+            self.get_logger().info("Controller switch done. Entering TRACKING.")
+
+    def _tick_controller_switch(self, now):
+        """Non-blocking controller switch using /controller_manager/switch_controller."""
+        if self._switch_done:
+            # Shouldn't happen, but be safe.
+            self._enter_post_switch(now)
+            return
+
+        now_s = now.nanoseconds / 1e9
+
+        # If a request is in flight, wait for completion.
+        if self._switch_future is not None:
+            if self._switch_future.done():
+                try:
+                    res = self._switch_future.result()
+                    ok = bool(getattr(res, "ok", False))
+                except Exception as e:
+                    ok = False
+                    self.get_logger().warn(f"Controller switch call failed: {e}")
+
+                self._switch_future = None
+                if ok:
+                    self._switch_done = True
+                    self.get_logger().info(
+                        f"Controllers switched (ok={ok}): deactivate={self.deactivate_controllers} "
+                        f"activate={self.activate_controllers}"
+                    )
+                    self._enter_post_switch(now)
+                else:
+                    self.get_logger().warn("Controller switch returned ok=False (or failed). Will retry.")
+                    self._next_switch_attempt_time = now_s + self.switch_retry_period_sec
+            return
+
+        # No in-flight request: check retry window.
+        if self._next_switch_attempt_time is not None and now_s < self._next_switch_attempt_time:
+            return
+
+        if self._switch_client is None:
+            self.get_logger().error("SwitchController client not initialized. Skipping controller switch.")
+            self._switch_done = True
+            self._enter_post_switch(now)
+            return
+
+        if not self._switch_client.service_is_ready():
+            # Give it a small non-blocking poke.
+            try:
+                self._switch_client.wait_for_service(timeout_sec=0.0)
+            except Exception:
+                pass
+
+        if not self._switch_client.service_is_ready():
+            if self._switch_deadline is not None and now_s >= self._switch_deadline:
+                self.get_logger().warn(
+                    f"SwitchController service not available after {self.wait_for_switch_service_sec:.1f}s. "
+                    "Continuing WITHOUT switching controllers."
+                )
+                self._switch_done = True
+                self._enter_post_switch(now)
+            return
+
+        # Build and send request.
+        req = SwitchController.Request()
+        req.activate_controllers = list(self.activate_controllers)
+        req.deactivate_controllers = list(self.deactivate_controllers)
+        # Deprecated fields kept for compatibility
+        req.start_controllers = list(self.activate_controllers)
+        req.stop_controllers = list(self.deactivate_controllers)
+
+        # strictness
+        strict = 1  # BEST_EFFORT
+        try:
+            strict = int(getattr(SwitchController.Request, "BEST_EFFORT", 1))
+            if self.switch_strictness == "strict":
+                strict = int(getattr(SwitchController.Request, "STRICT", 2))
+        except Exception:
+            strict = 2 if self.switch_strictness == "strict" else 1
+        req.strictness = strict
+
+        # asap + timeout
+        req.activate_asap = bool(self.activate_asap)
+        req.start_asap = bool(self.activate_asap)  # deprecated
+        req.timeout = _duration_from_seconds(self.switch_timeout_sec)
+
+        self.get_logger().info(
+            "Switching controllers... "
+            f"deactivate={req.deactivate_controllers} activate={req.activate_controllers} "
+            f"strictness={'STRICT' if strict == 2 else 'BEST_EFFORT'} "
+            f"activate_asap={req.activate_asap} timeout={self.switch_timeout_sec:.1f}s"
+        )
+        try:
+            self._switch_future = self._switch_client.call_async(req)
+        except Exception as e:
+            self.get_logger().warn(f"Failed to call SwitchController: {e}")
+            self._next_switch_attempt_time = now_s + self.switch_retry_period_sec
 
     # -------- Graceful stop --------
     def stop_cleanly(self):
