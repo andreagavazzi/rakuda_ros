@@ -11,7 +11,7 @@ def generate_launch_description():
     # Recupera path e xacro
     control_share = get_package_share_directory('rakuda_control')
     description_share = get_package_share_directory('rakuda_description')
-    xacro_file = os.path.join(description_share, 'urdf', 'rakuda.xacro')
+    xacro_file = os.path.join(description_share, 'urdf', 'rakuda.urdf.xacro')
     doc = xacro.process_file(xacro_file)
     robot_description = {'robot_description': doc.toxml()}
     controllers_file = os.path.join(control_share, 'config', 'rakuda_controllers.yaml')
@@ -65,12 +65,28 @@ def generate_launch_description():
        arguments=['left_arm_controller'],
        output='log'
     )
-    
+
+    # 5a. Spawner Left Gripper
+    left_gripper_controller_spawner = Node(
+       package='controller_manager',
+       executable='spawner',
+       arguments=['left_gripper_controller'],
+       output='log'
+    )
+
     # 6. Spawner Right Arm
     right_arm_controller_spawner = Node(
        package='controller_manager',
        executable='spawner',
        arguments=['right_arm_controller'],
+       output='log'
+    )
+
+    # 6a. Spawner Right Gripper
+    right_gripper_controller_spawner = Node(
+       package='controller_manager',
+       executable='spawner',
+       arguments=['right_gripper_controller'],
        output='log'
     )
 
@@ -105,7 +121,9 @@ def generate_launch_description():
                 head_controller_spawner,
                 head_position_controller_spawner,
                 left_arm_controller_spawner,
-                right_arm_controller_spawner
+                left_gripper_controller_spawner,
+                right_arm_controller_spawner,
+                right_gripper_controller_spawner
               ]
         )
     )
