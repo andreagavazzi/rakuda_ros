@@ -114,7 +114,9 @@ left_arm_controller:
       - position
       - velocity
 
+    state_publish_rate: 50.0
     allow_partial_joints_goal: true
+    interpolate_from_desired_state: true
     constraints:
       stopped_velocity_tolerance: 0.2
       goal_time: 0.5
@@ -124,6 +126,7 @@ left_gripper_controller:
     joint: l_gripper_joint
     goal_tolerance: 0.1
     allow_stalling: true
+    max_effort: 1.5
 
 
 right_arm_controller:
@@ -143,7 +146,9 @@ right_arm_controller:
       - position
       - velocity
 
+    state_publish_rate: 50.0
     allow_partial_joints_goal: true
+    interpolate_from_desired_state: true
     constraints:
       stopped_velocity_tolerance: 0.2
       goal_time: 0.5
@@ -153,3 +158,4 @@ right_gripper_controller:
     joint: r_gripper_joint
     goal_tolerance: 0.1
     allow_stalling: true
+    max_effort: 1.5
