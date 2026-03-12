@@ -26,7 +26,7 @@ class MouthPublisher(Node):
     CHUNK        = 1024
     SENSITIVITY  = 0.8
     NOISE_FLOOR  = 0.01
-    SERIAL_PORT  = 'ttyESP32_LCD'
+    SERIAL_PORT  = '/dev/ttyACM0'
     SERIAL_BAUD  = 115200
     SEND_HZ      = 33          # frequenza invio (ms = 1000/SEND_HZ ≈ 30ms)
 
@@ -127,6 +127,10 @@ class MouthPublisher(Node):
         if self.proc:
             self.proc.terminate()
         if self.ser:
+            try:
+                self.ser.write(b'-1\n')   # segnale di shutdown all'ESP32
+            except serial.SerialException:
+                pass
             self.ser.close()
         super().destroy_node()
 

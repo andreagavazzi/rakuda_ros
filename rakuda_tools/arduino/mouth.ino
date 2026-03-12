@@ -1,5 +1,5 @@
 /**************************************************************************
- * mouth_pugblisher.ino
+ * rakuda_face.ino
  * Waveshare ESP32-S3 Touch-LCD 1.69″ – 3 barre + bocca idle
  *
  * Dopo SILENCE_TIMEOUT_MS di silenzio appare una bocca (3 quadrati)
@@ -60,10 +60,11 @@ constexpr int16_t  MOUTH_X    = AXIS_X - MOUTH_SQ / 2;
 constexpr int16_t  MOUTH_Y    = (CH - (3 * MOUTH_SQ + 2 * MOUTH_GAP)) / 2;
 
 /* ------- stato ------- */
-int      lastRms       = 0;
-bool     wasSilent     = true;
-bool     mouthVisible  = false;
-uint32_t silenceStart  = 0;
+int      lastRms            = 0;
+bool     wasSilent          = true;
+bool     mouthVisible       = false;
+uint32_t silenceStart       = 0;
+bool     firstInputReceived = false;
 
 /* ------------------------------------------------------------------ */
 inline void drawFrame(uint8_t lvlTop, uint8_t lvlMid, uint8_t lvlBot)
@@ -103,7 +104,7 @@ void setup()
   USB.begin();
 
   pinMode(LCD_BL, OUTPUT);
-  digitalWrite(LCD_BL, HIGH);
+  digitalWrite(LCD_BL, LOW);   // spento finché non arriva il primo input
 
   canvas->begin();
   tft->fillScreen(COL_OFF);
@@ -122,8 +123,29 @@ void loop()
     String line = USBSerial.readStringUntil('\n');
     line.trim();
     if (line.length() > 0) {
-      lastRms = constrain(line.toInt(), 0, 255);
+      int val = line.toInt();
+      if (val == -1) {
+        // segnale di shutdown: spegni tutto
+        canvas->fillScreen(COL_OFF);
+        canvas->flush();
+        digitalWrite(LCD_BL, LOW);
+        firstInputReceived = false;
+        lastRms = 0;
+        mouthVisible = false;
+      } else {
+        lastRms = constrain(val, 0, 255);
+        if (!firstInputReceived) {
+          firstInputReceived = true;
+          digitalWrite(LCD_BL, HIGH);
+        }
+      }
     }
+  }
+
+  // schermo spento finché non arriva il primo input
+  if (!firstInputReceived) {
+    delay(FRAME_MS);
+    return;
   }
 
   bool silent = (lastRms < 5);
