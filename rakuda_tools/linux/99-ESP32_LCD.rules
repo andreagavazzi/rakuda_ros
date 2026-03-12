@@ -1,0 +1,10 @@
+# ESP32-S3 LCD (Waveshare Touch-LCD-1.69): porta stabile
+SUBSYSTEM=="tty", ATTRS{serial}=="cc:ba:97:12:5e:f4", \
+  ENV{ID_MM_DEVICE_IGNORE}="1", \
+  SYMLINK+="ttyESP32_LCD"
+
+# Disabilita autosuspend sul device USB
+SUBSYSTEM=="usb", ATTRS{serial}=="cc:ba:97:12:5e:f4", \
+  TEST=="power/control", ATTR{power/control}="on"
+SUBSYSTEM=="usb", ATTRS{serial}=="cc:ba:97:12:5e:f4", \
+  TEST=="power/autosuspend", ATTR{power/autosuspend}="-1"
