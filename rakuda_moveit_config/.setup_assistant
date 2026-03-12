@@ -1,0 +1,10 @@
+moveit_setup_assistant_config:
+  urdf:
+    package: rakuda_description
+    relative_path: urdf/rakuda.urdf
+  srdf:
+    relative_path: config/rakuda.srdf
+  package_settings:
+    author_name: Andrea Gavazzi
+    author_email: andrea.gavazzi@me.com
+    generated_timestamp: 1773006045

@@ -25,6 +25,7 @@ setup(
             'look_at_link_target = rakuda_tools.look_at_link_target:main',
             'head_gimbal_keyboard = rakuda_tools.head_gimbal_keyboard:main',
             "pose_player = rakuda_tools.pose_player:main",
+            'mouth_publisher = rakuda_tools.mouth_publisher:main',
         ],
     },
 )
