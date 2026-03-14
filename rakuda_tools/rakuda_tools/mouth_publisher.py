@@ -26,7 +26,7 @@ class MouthPublisher(Node):
     CHUNK        = 1024
     SENSITIVITY  = 0.8
     NOISE_FLOOR  = 0.01
-    SERIAL_PORT  = '/dev/ttyACM0'
+    SERIAL_PORT  = 'ttyESP32_LCD'
     SERIAL_BAUD  = 115200
     SEND_HZ      = 33          # frequenza invio (ms = 1000/SEND_HZ ≈ 30ms)
 
@@ -59,12 +59,13 @@ class MouthPublisher(Node):
         # ── Serial ─────────────────────────────────────────────────────
         port = self._find_esp32_port() or serial_port
         try:
-            self.ser = serial.Serial(port, serial_baud,
-                                     timeout=1, dtr=False, rts=False)
-            self.get_logger().info(f'ESP32 connesso su {port}')
+            self.ser = serial.Serial(port, serial_baud, timeout=1)
+            self.ser.dtr = False
+            self.ser.rts = False
+            self.get_logger().info(f'ESP32 detected on port {port}')
         except serial.SerialException as e:
-            self.ser = None
-            self.get_logger().warn(f'Serial non disponibile ({e})')
+            self.get_logger().error(f'{e}')
+            raise SystemExit(1)
 
         # ── parec ───────────────────────────────────────────────────────
         cmd = [
@@ -77,9 +78,9 @@ class MouthPublisher(Node):
         try:
             self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                                          stderr=subprocess.DEVNULL)
-            self.get_logger().info(f'parec avviato — monitor: {monitor}')
+            self.get_logger().info(f'Hearing from {monitor}')
         except FileNotFoundError:
-            self.get_logger().error('parec non trovato. Installa: sudo apt install pulseaudio-utils')
+            self.get_logger().error('parec not found! Please install: sudo apt install pulseaudio-utils')
             self.proc = None
 
         # ── Timer ───────────────────────────────────────────────────────
@@ -102,7 +103,7 @@ class MouthPublisher(Node):
 
         raw = self.proc.stdout.read(self.bytes_per_chunk)
         if not raw:
-            self.get_logger().warn('parec ha chiuso lo stream')
+            self.get_logger().warn('stream closed by parec')
             return
 
         data  = np.frombuffer(raw, dtype=np.int16).astype(np.float32)
@@ -120,7 +121,7 @@ class MouthPublisher(Node):
             try:
                 self.ser.write(f'{rms_byte}\n'.encode())
             except serial.SerialException as e:
-                self.get_logger().warn(f'Errore serial: {e}')
+                self.get_logger().warn(f'Serial error: {e}')
 
     # ────────────────────────────────────────────────────────────────────
     def destroy_node(self):
@@ -132,6 +133,7 @@ class MouthPublisher(Node):
             except serial.SerialException:
                 pass
             self.ser.close()
+        print(' [mouth_publisher] closed')
         super().destroy_node()
 
 
@@ -141,11 +143,14 @@ def main(args=None):
     node = MouthPublisher()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, SystemExit):
         pass
     finally:
-        node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            node.destroy_node()
+            rclpy.shutdown()
+        else:
+            node.destroy_node()
 
 
 if __name__ == '__main__':
