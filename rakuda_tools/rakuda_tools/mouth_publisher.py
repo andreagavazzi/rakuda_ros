@@ -78,7 +78,7 @@ class MouthPublisher(Node):
         try:
             self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                                          stderr=subprocess.DEVNULL)
-            self.get_logger().info(f'Hearing from {monitor}')
+            self.get_logger().info(f'Connected to {monitor}')
         except FileNotFoundError:
             self.get_logger().error('parec not found! Please install: sudo apt install pulseaudio-utils')
             self.proc = None
@@ -133,7 +133,7 @@ class MouthPublisher(Node):
             except serial.SerialException:
                 pass
             self.ser.close()
-        print(' [mouth_publisher] closed')
+        print(' [mouth_publisher]: node closed, mouth disconnected!')
         super().destroy_node()
 
 
