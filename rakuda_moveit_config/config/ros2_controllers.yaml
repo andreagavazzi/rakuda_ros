@@ -3,6 +3,8 @@ controller_manager:
     update_rate: 100
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
+    head_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
     left_arm_controller:
       type: joint_trajectory_controller/JointTrajectoryController
     right_arm_controller:
@@ -13,6 +15,13 @@ controller_manager:
       type: position_controllers/GripperActionController
     right_gripper_controller:
       type: position_controllers/GripperActionController
+
+head_controller:
+  ros__parameters:
+    joints: [neck_yaw_joint, neck_pitch_joint]
+    command_interfaces: [position]
+    state_interfaces: [position, velocity]
+    allow_partial_joints_goal: false
 
 left_arm_controller:
   ros__parameters:

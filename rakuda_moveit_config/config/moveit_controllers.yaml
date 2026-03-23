@@ -4,11 +4,21 @@ moveit_controller_manager: moveit_simple_controller_manager/MoveItSimpleControll
 
 moveit_simple_controller_manager:
   controller_names:
+    - head_controller
     - left_arm_controller
     - right_arm_controller
     - torso_controller
     - left_gripper_controller
     - right_gripper_controller
+
+  head_controller:
+    type: FollowJointTrajectory
+    action_ns: follow_joint_trajectory
+    default: true
+    joints:
+      - neck_yaw_joint
+      - neck_pitch_joint
+
 
   left_arm_controller:
     type: FollowJointTrajectory
