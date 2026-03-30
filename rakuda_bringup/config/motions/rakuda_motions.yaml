@@ -1,0 +1,158 @@
+# rakuda_motions.yaml
+# Unified config for play_motion2 on Rakuda.
+# All parameters under /play_motion2 to match the node name.
+
+/play_motion2:
+  ros__parameters:
+
+    # ── Motion planner ─────────────────────────────────────────────
+    motion_planner:
+      disable_motion_planning: false
+      planning_groups:
+        - left_arm
+        - right_arm
+        - both_arms
+        - head
+        - left_arm_with_torso
+        - right_arm_with_torso
+      exclude_from_planning_joints:
+        - l_gripper_joint
+        - r_gripper_joint
+      joint_tolerance: 0.01
+      approach_velocity: 0.3
+      approach_min_duration: 0.8
+
+    # ── Motion library ──────────────────────────────────────────────
+    motions:
+
+      home:
+        joints: [l_arm_joint1, l_arm_joint2, l_arm_joint3,
+                 l_arm_joint4, l_arm_joint5, l_arm_joint6,
+                 r_arm_joint1, r_arm_joint2, r_arm_joint3,
+                 r_arm_joint4, r_arm_joint5, r_arm_joint6,
+                 neck_yaw_joint, neck_pitch_joint, waist_yaw_joint]
+        positions: [0.1745,  -0.0174, 0.0174, -0.2094, 0.0, 0.0,
+                    -0.1745, 0.0174, 0.0174, 0.2094, 0.0, 0.0,
+                    0.0,  0.0, 0.0]
+        times_from_start: [2.5]
+        meta:
+          name: Home
+          usage: reset
+          description: 'Safe neutral pose'
+
+      wait:
+        joints: [l_arm_joint1, l_arm_joint2, l_arm_joint3,
+                 l_arm_joint4, l_arm_joint5, l_arm_joint6,
+                 r_arm_joint1, r_arm_joint2, r_arm_joint3,
+                 r_arm_joint4, r_arm_joint5, r_arm_joint6,
+                 neck_yaw_joint, neck_pitch_joint, waist_yaw_joint]
+        positions: [0.1703, 0.4172, 0.0169, -0.8728, -0.0015, -0.0061, -0.1687, -0.4218, 0.2531, 0.5937, -0.0015, 0.0015, -0.0, -0.0828, 0.6535]
+        times_from_start: [1.5]
+        meta:
+          name: Wait
+          usage: test
+          description: 'waiting to interact'
+
+      head_home:
+        joints: [neck_yaw_joint, neck_pitch_joint]
+        positions: [0.0, 0.0]
+        times_from_start: [1.0]
+        meta:
+          name: Head Home
+          usage: gesture
+          description: 'Head to neutral position'
+
+      nod_yes:
+        joints: [neck_pitch_joint]
+        positions: [ 0.35,
+                    -0.35,
+                     0.35,
+                     0.0]
+        times_from_start: [0.5, 1.0, 1.5, 2.0]
+        meta:
+          name: Nod Yes
+          usage: interaction
+          description: 'Nod up and down twice'
+
+      shake_no:
+        joints: [neck_yaw_joint]
+        positions: [ 0.35,
+                    -0.35,
+                     0.35,
+                    -0.35,
+                     0.0]
+        times_from_start: [0.4, 0.8, 1.2, 1.6, 2.0]
+        meta:
+          name: Shake No
+          usage: interaction
+          description: 'Shake head left-right twice'
+
+      wave_right:
+        joints: [r_arm_joint1, r_arm_joint2, r_arm_joint3,
+                 r_arm_joint4, r_arm_joint5, r_arm_joint6]
+        positions: [0.8851, -0.1549, 0.1212, 2.0801, 0.2102, 0.2362,
+                    0.8207, -0.1335, 0.3513, 2.077, 0.3313, 0.2439,
+                    0.7869, -0.1335, -0.2638, 2.0831, 0.1963, 0.2439,
+                    0.8851, -0.1549, 0.1212, 2.0801, 0.2102, 0.2362]
+        times_from_start: [1.2, 1.8, 2.4, 3.0]
+        meta:
+          name: Wave Right
+          usage: interaction
+          description: 'Raise right arm and wave'
+
+      offer_right:
+        joints: [r_arm_joint1, r_arm_joint2, r_arm_joint3,
+                 r_arm_joint4, r_arm_joint5, r_arm_joint6,
+                 neck_yaw_joint, neck_pitch_joint]
+        positions: [ 0.0, -0.3,  0.0, -1.2, 0.0, 0.0,   0.0,  0.3,
+                     0.0, -0.3,  0.0, -0.9, 0.0, 0.0,   0.0,  0.3]
+        times_from_start: [1.5, 2.5]
+        meta:
+          name: Offer Right
+          usage: manipulation
+          description: 'Extend right arm to offer an object'
+
+      inspect_left:
+        joints: [l_arm_joint1, l_arm_joint2, l_arm_joint3,
+                 l_arm_joint4, l_arm_joint5, l_arm_joint6,
+                 neck_yaw_joint, neck_pitch_joint]
+        positions: [-0.3, -0.5,  0.5, -1.3,  0.0,  0.0,   0.0,  0.2,
+                    -0.3, -0.5,  0.5, -1.0,  0.0,  0.0,   0.0,  0.3]
+        times_from_start: [1.5, 2.2]
+        meta:
+          name: Inspect Left
+          usage: manipulation
+          description: 'Raise left hand into camera FOV'
+
+      pregrasp_left_front:
+        joints: [l_arm_joint1, l_arm_joint2, l_arm_joint3,
+                 l_arm_joint4, l_arm_joint5, l_arm_joint6]
+        positions: [0.0, -0.2, 0.0, -1.1, 0.0, 0.0]
+        times_from_start: [2.0]
+        meta:
+          name: Pregrasp Left Front
+          usage: manipulation
+          description: 'Left arm pre-grasp stance'
+
+      pregrasp_right_front:
+        joints: [r_arm_joint1, r_arm_joint2, r_arm_joint3,
+                 r_arm_joint4, r_arm_joint5, r_arm_joint6]
+        positions: [0.0,  0.2, 0.0, -1.1, 0.0, 0.0]
+        times_from_start: [2.0]
+        meta:
+          name: Pregrasp Right Front
+          usage: manipulation
+          description: 'Right arm pre-grasp stance'
+
+      tucked:
+        joints: [l_arm_joint1, l_arm_joint2, l_arm_joint3,
+                 l_arm_joint4, l_arm_joint5, l_arm_joint6,
+                 r_arm_joint1, r_arm_joint2, r_arm_joint3,
+                 r_arm_joint4, r_arm_joint5, r_arm_joint6]
+        positions: [0.0,  1.3,  1.5, -2.0,  0.0,  0.0,
+                    0.0, -1.3, -1.5, -2.0,  0.0,  0.0]
+        times_from_start: [3.0]
+        meta:
+          name: Tucked
+          usage: transport
+          description: 'Both arms folded for safe transport'

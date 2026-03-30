@@ -26,6 +26,8 @@ setup(
             'head_gimbal_keyboard = rakuda_tools.head_gimbal_keyboard:main',
             "pose_player = rakuda_tools.pose_player:main",
             'mouth_publisher = rakuda_tools.mouth_publisher:main',
+            'torque_arms_on = rakuda_tools.torque_arms_on:main',
+            'torque_arms_off = rakuda_tools.torque_arms_off:main',
         ],
     },
 )

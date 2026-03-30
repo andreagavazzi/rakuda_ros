@@ -13,6 +13,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob(os.path.join('launch', '*launch.[pxy][yma]*'))),
+        (os.path.join('share', package_name, 'config', 'motions'), glob(os.path.join('config', 'motions', '*.yaml'))),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -27,6 +28,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'get_joint_positions = rakuda_bringup.get_joint_positions:main',
         ],
     },
 )
