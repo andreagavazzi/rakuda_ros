@@ -29,8 +29,12 @@ info "pixel-ring installed."
 
 # ── 2. udev rule ───────────────────────────────────────────────────────────────
 info "Writing udev rule → ${UDEV_RULE}"
-cat > "$UDEV_RULE" <<'EOF'
-SUBSYSTEM=="usb", ATTR{idVendor}=="2886", ATTR{idProduct}=="0018", MODE="0666"
+cat > "$UDEV_RULE" <<EOF
+# ReSpeaker 4-mic array (USB ID 2886:0018)
+# Set permissions and turn off LEDs on every plug event
+SUBSYSTEM=="usb", ATTR{idVendor}=="2886", ATTR{idProduct}=="0018", \\
+    MODE="0666", \\
+    RUN+="/bin/systemd-run --no-block ${PYTHON_BIN} ${INSTALL_DIR}/led_off.py"
 EOF
 chmod 644 "$UDEV_RULE"
 info "udev rule written."
@@ -43,8 +47,10 @@ info "Writing Python script → ${SCRIPT_FILE}"
 cat > "$SCRIPT_FILE" <<'PYEOF'
 #!/usr/bin/env python3
 """
-led_off.py – turns off all ReSpeaker 4-mic array LEDs at boot.
-Retries up to 10 seconds waiting for the USB device to enumerate.
+led_off.py  –  spegne i LED del ReSpeaker 4-mic array.
+Chiamato sia dal service systemd all'avvio, sia dalla udev rule ad ogni plug.
+udev garantisce che il device sia già enumerato; un piccolo delay
+assicura che l'endpoint di controllo USB sia pronto.
 """
 import time
 import sys
@@ -58,24 +64,23 @@ except ImportError as e:
 
 VENDOR_ID  = 0x2886
 PRODUCT_ID = 0x0018
-MAX_RETRIES = 10
 
-for attempt in range(MAX_RETRIES):
-    dev = usb.core.find(idVendor=VENDOR_ID, idProduct=PRODUCT_ID)
-    if dev is not None:
-        try:
-            pixel_ring.off()
-            print(f"[led_off] ReSpeaker LEDs turned off (attempt {attempt + 1})")
-            sys.exit(0)
-        except Exception as e:
-            print(f"[led_off] pixel_ring.off() failed: {e}", file=sys.stderr)
-            sys.exit(1)
-    print(f"[led_off] Device not found, retrying ({attempt + 1}/{MAX_RETRIES})...")
-    time.sleep(1)
+# piccolo delay: l'endpoint di controllo USB può non essere
+# ancora pronto subito dopo l'evento udev
+time.sleep(0.5)
 
-print("[led_off] ReSpeaker not found after 10 attempts. Is it plugged in?",
-      file=sys.stderr)
-sys.exit(1)
+dev = usb.core.find(idVendor=VENDOR_ID, idProduct=PRODUCT_ID)
+if dev is None:
+    print("[led_off] ReSpeaker non trovato.", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    pixel_ring.off()
+    print("[led_off] LEDs spenti.")
+    sys.exit(0)
+except Exception as e:
+    print(f"[led_off] Errore: {e}", file=sys.stderr)
+    sys.exit(1)
 PYEOF
 
 chmod +x "$SCRIPT_FILE"
