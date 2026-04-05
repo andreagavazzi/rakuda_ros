@@ -21,7 +21,7 @@ from rclpy.node import Node
 class MouthPublisher(Node):
 
     # ── Parametri di default ────────────────────────────────────────────
-    MONITOR      = 'alsa_output.usb-SEEED_ReSpeaker_4_Mic_Array__UAC1.0_-00.iec958-stereo.monitor'
+    MONITOR      = 'alsa_output.usb-SEEED_ReSpeaker_4_Mic_Array__UAC1.0_-00.analog-stereo.monitor'
     RATE         = 16000
     CHUNK        = 1024
     SENSITIVITY  = 0.8
@@ -43,7 +43,7 @@ class MouthPublisher(Node):
         self.declare_parameter('serial_baud', self.SERIAL_BAUD)
         self.declare_parameter('send_hz',     self.SEND_HZ)
 
-        monitor     = self.get_parameter('monitor').value
+        monitor     = self._find_monitor_sink() or self.get_parameter('monitor').value
         rate        = self.get_parameter('rate').value
         chunk       = self.get_parameter('chunk').value
         self.sensitivity  = self.get_parameter('sensitivity').value
@@ -86,6 +86,24 @@ class MouthPublisher(Node):
         # ── Timer ───────────────────────────────────────────────────────
         period = 1.0 / send_hz
         self.timer = self.create_timer(period, self._timer_cb)
+
+    # ────────────────────────────────────────────────────────────────────
+    def _find_monitor_sink(self) -> str | None:
+        """Cerca dinamicamente il monitor del ReSpeaker via pactl."""
+        try:
+            out = subprocess.check_output(
+                ['pactl', 'list', 'sources', 'short'],
+                stderr=subprocess.DEVNULL, text=True
+            )
+            for line in out.splitlines():
+                name = line.split('\t')[1] if '\t' in line else ''
+                if 'respeaker' in name.lower() or 'seeed' in name.lower():
+                    if name.endswith('.monitor'):
+                        self.get_logger().info(f'Auto-detected monitor: {name}')
+                        return name
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            pass
+        return None
 
     # ────────────────────────────────────────────────────────────────────
     def _find_esp32_port(self) -> str | None:
