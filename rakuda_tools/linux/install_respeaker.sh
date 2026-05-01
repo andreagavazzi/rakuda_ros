@@ -23,7 +23,7 @@ SCRIPT_FILE="${INSTALL_DIR}/led_off.py"
 
 # ── 1. pip install pixel-ring ───────────────────────────────────────────────────
 info "Installing pixel-ring and pyusb via pip..."
-"$PYTHON_BIN" -m pip install --quiet pyusb pixel-ring --break-system-packages \
+"$PYTHON_BIN" -m pip install --quiet pyusb pixel-ring \
   || error "pip install failed"
 info "pixel-ring installed."
 
