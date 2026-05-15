@@ -17,6 +17,7 @@ It provides the runtime configuration and launch files to bring up `ros2_control
 
 ### Install
 ```bash
+sudo addgroup $USER dialout
 cd ~/ros2_ws
 colcon build --packages-select rakuda_control
 ```
