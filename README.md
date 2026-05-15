@@ -15,6 +15,12 @@ It provides the runtime configuration and launch files to bring up `ros2_control
 - Controllers YAML (joints, interfaces, constraints)
 - Launch files to load/activate controllers and broadcasters
 
+### Install
+```bash
+cd ~/ros2_ws
+colcon build --packages-select rakuda_control
+```
+
 ### Usage
 ```bash
 ros2 launch rakuda_control rakuda_control_launch.py
@@ -23,7 +29,7 @@ ros2 control set_controller_state head_controller active
 ```
 
 > [!IMPORTANT]  
-> Works together with the rakuda_description package (URDF/Xacro) and the Dynamixel hardware interface.
+> Works together with the rakuda_description package (URDF/Xacro) and Dynamixel hardware interface.
 
 
 ---
