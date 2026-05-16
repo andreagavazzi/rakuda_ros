@@ -4,13 +4,27 @@ This repository groups multiple ROS 2 packages that cover the full stack: contro
 Each package can be built and launched independently, but they are designed to work together.
 
 
+<<<<<<< HEAD
 ### `rakuda_control`
+=======
+---
+
+
+## `rakuda_control`
+>>>>>>> cf476c8e82375b0bbded425db569b0ab291f4d05
 
 ROS 2 control package for **Rakuda**.  
 It provides the runtime configuration and launch files to bring up `ros2_control`:
 - Controller Manager (`ros2_control_node`) setup
 - Controllers YAML (joints, interfaces, constraints)
 - Launch files to load/activate controllers and broadcasters
+
+### Install
+```bash
+sudo addgroup $USER dialout
+cd ~/ros2_ws
+colcon build --packages-select rakuda_control
+```
 
 ### Usage
 ```bash
@@ -20,19 +34,29 @@ ros2 control set_controller_state head_controller active
 ```
 
 > [!IMPORTANT]  
-> Works together with the rakuda_description package (URDF/Xacro) and the Dynamixel hardware interface.
+> Works together with the rakuda_description package (URDF/Xacro) and Dynamixel hardware interface.
 
 
 ---
 
-# `rakuda_tools`
+## `rakuda_tools`
 
 
 `mouth_publisher` is a ROS 2 node that receives audio from the ReSpeaker microphone array and uses it to drive the robot’s mouth animation in real time. Its purpose is to generate speech-synchronized mouth movements, making the robot’s interaction more natural and expressive.
 
+<<<<<<< HEAD
 - Real-time audio acquisition from the ReSpeaker
 - Speech-synchronized mouth animation
 - Improved expressiveness during human-robot interaction
+=======
+Subscribed Topics
+
+- Audio input from the ReSpeaker microphone array
+
+Published Topics
+
+- Mouth animation command topic used by the robot to animate the mouth in sync with speech
+>>>>>>> cf476c8e82375b0bbded425db569b0ab291f4d05
 
 ### Usage
 
