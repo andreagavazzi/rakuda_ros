@@ -4,14 +4,8 @@ This repository groups multiple ROS 2 packages that cover the full stack: contro
 Each package can be built and launched independently, but they are designed to work together.
 
 
-<<<<<<< HEAD
-### `rakuda_control`
-=======
----
 
-
-## `rakuda_control`
->>>>>>> cf476c8e82375b0bbded425db569b0ab291f4d05
+## rakuda_control
 
 ROS 2 control package for **Rakuda**.  
 It provides the runtime configuration and launch files to bring up `ros2_control`:
@@ -39,24 +33,11 @@ ros2 control set_controller_state head_controller active
 
 ---
 
-## `rakuda_tools`
+## rakuda_tools
 
 
 `mouth_publisher` is a ROS 2 node that receives audio from the ReSpeaker microphone array and uses it to drive the robot’s mouth animation in real time. Its purpose is to generate speech-synchronized mouth movements, making the robot’s interaction more natural and expressive.
 
-<<<<<<< HEAD
-- Real-time audio acquisition from the ReSpeaker
-- Speech-synchronized mouth animation
-- Improved expressiveness during human-robot interaction
-=======
-Subscribed Topics
-
-- Audio input from the ReSpeaker microphone array
-
-Published Topics
-
-- Mouth animation command topic used by the robot to animate the mouth in sync with speech
->>>>>>> cf476c8e82375b0bbded425db569b0ab291f4d05
 
 ### Usage
 
