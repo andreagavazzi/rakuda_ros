@@ -4,9 +4,6 @@ This repository groups multiple ROS 2 packages that cover the full stack: contro
 Each package can be built and launched independently, but they are designed to work together.
 
 
----
-
-
 ### `rakuda_control`
 
 ROS 2 control package for **Rakuda**.  
@@ -30,19 +27,8 @@ ros2 control set_controller_state head_controller active
 
 # `rakuda_tools`
 
-## mouth_publisher
 
 `mouth_publisher` is a ROS 2 node that receives audio from the ReSpeaker microphone array and uses it to drive the robot’s mouth animation in real time. Its purpose is to generate speech-synchronized mouth movements, making the robot’s interaction more natural and expressive.
-
-### Subscribed Topics
-
-- Audio input from the ReSpeaker microphone array
-
-### Published Topics
-
-- Mouth animation command topic used by the robot to animate the mouth in sync with speech
-
-### Features
 
 - Real-time audio acquisition from the ReSpeaker
 - Speech-synchronized mouth animation
@@ -52,9 +38,7 @@ ros2 control set_controller_state head_controller active
 
 ```bash
 ros2 run rakuda_tools mouth_publisher
-
-
-## head_motion_filter
+```
 
 `head_motion_filter` is a ROS 2 node that acts as a motion shaper and filter for a 2-DOF head gimbal controlled through a `position_controllers/JointGroupPositionController`. It receives target yaw and pitch commands, applies smoothing and motion constraints, and publishes filtered commands to achieve stable, natural, and safe head movements.
 
