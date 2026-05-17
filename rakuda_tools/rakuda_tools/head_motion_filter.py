@@ -7,6 +7,8 @@ position_controllers/JointGroupPositionController.
 
 - Subscribes:  /head_target  (Float64MultiArray)  [yaw, pitch]  rad
 - Publishes:   /head_position_controller/commands (Float64MultiArray) [yaw, pitch] rad
+  NOTE: the [yaw, pitch] order MUST match the `joints:` list of the
+  `head_position_controller` in your controller_manager YAML.
 
 Startup controller switch (optional, enabled by default):
   - Deactivate: head_controller
@@ -15,7 +17,7 @@ Startup controller switch (optional, enabled by default):
     ros2 control switch_controllers --deactivate head_controller --activate head_position_controller
 
 Core features:
-- Startup state machine: WAIT_JS -> HOMING -> TRACKING (optional homing)
+- Startup state machine: WAIT_SWITCH -> WAIT_JS -> HOMING -> TRACKING (HOMING optional)
 - 1st order smoothing (tau) + velocity clamp + acceleration clamp
 - Optional clamp to URDF kinematic joint limits (NOT ros2_control joints)
 - Optional target timeout behavior (hold/home)
@@ -181,6 +183,7 @@ class HeadGimbalMotionFilter(Node):
     Motion filter / shaper for a 2DOF head gimbal.
 
     State machine:
+      - WAIT_SWITCH: (optional) deactivate head_controller / activate head_position_controller
       - WAIT_JS: wait for /joint_states so internal state starts from real pose
       - HOMING: (optional) move to home pose
       - TRACKING: follow /head_target (filtered + limited)
@@ -248,6 +251,15 @@ class HeadGimbalMotionFilter(Node):
         self.declare_parameter("target_deadband_rad", 0.0)
         self.target_deadband = float(self.get_parameter("target_deadband_rad").value)
 
+        # Validate motion params (fail fast instead of silent clamping later)
+        if self.rate_hz <= 0.0 or self.max_vel <= 0.0 or self.max_acc <= 0.0 \
+                or self.tau < 0.0 or self.target_deadband < 0.0:
+            raise ValueError(
+                f"Invalid motion params: rate_hz={self.rate_hz}, max_vel={self.max_vel}, "
+                f"max_acc={self.max_acc}, tau={self.tau}, "
+                f"target_deadband_rad={self.target_deadband}"
+            )
+
         # ---------------- Joints ----------------
         self.declare_parameter("yaw_joint", "neck_yaw_joint")
         self.declare_parameter("pitch_joint", "neck_pitch_joint")
@@ -304,7 +316,7 @@ class HeadGimbalMotionFilter(Node):
         self.publish_hold_on_shutdown = bool(self.get_parameter("publish_hold_on_shutdown").value)
 
         # ---------------- Internal state ----------------
-        self.dt_nominal = 1.0 / max(1.0, self.rate_hz)
+        self.dt_nominal = 1.0 / self.rate_hz
 
         # joint_states cache (avoid msg.name.index every time)
         self._have_js = False
@@ -333,9 +345,9 @@ class HeadGimbalMotionFilter(Node):
         if self.auto_switch_controllers:
             self._phase = "WAIT_SWITCH"
         else:
-            self._phase = "WAIT_JS" if self.home_on_start else "TRACKING"
-            if self._phase == "TRACKING":
-                self._target_seq_at_tracking_enable = self._target_seq
+            # Always go through WAIT_JS so we init from the real pose and avoid
+            # a startup jump when home_on_start=False.
+            self._phase = "WAIT_JS"
 
         # timing for real dt
         self._last_tick_time = None
@@ -351,6 +363,11 @@ class HeadGimbalMotionFilter(Node):
         self.sub_js = self.create_subscription(JointState, self.joint_states_topic, self.on_joint_states, 10)
         self.sub_target = self.create_subscription(Float64MultiArray, self.target_topic, self.on_target, 10)
         self.pub_cmd = self.create_publisher(Float64MultiArray, self.command_topic, 10)
+
+        # Pre-allocated command message (avoid per-tick allocation in hot path).
+        # IMPORTANT: keep [yaw, pitch] order in sync with the controller's `joints:` list.
+        self._cmd_msg = Float64MultiArray()
+        self._cmd_msg.data = [0.0, 0.0]
 
         # URDF limits (optional)
         if self.clamp_to_urdf_limits:
@@ -382,13 +399,19 @@ class HeadGimbalMotionFilter(Node):
             else:
                 self._switch_client = self.create_client(SwitchController, self._switch_service_name)
                 now = self.get_clock().now()
-                self._switch_deadline = now.nanoseconds / 1e9 + self.wait_for_switch_service_sec
-                self._next_switch_attempt_time = now.nanoseconds / 1e9
+                self._switch_deadline = now.nanoseconds * 1e-9 + self.wait_for_switch_service_sec
+                self._next_switch_attempt_time = now.nanoseconds * 1e-9
                 self.get_logger().info(
                     "Startup controller switch enabled: "
                     f"deactivate={self.deactivate_controllers} activate={self.activate_controllers} "
                     f"via {self._switch_service_name}"
                 )
+
+    # -------- Time helpers --------
+    @staticmethod
+    def _secs_since(now, t):
+        """Seconds elapsed since rclpy.time.Time `t` until `now`. 0.0 if t is None."""
+        return 0.0 if t is None else (now - t).nanoseconds * 1e-9
 
     # -------- URDF LIMITS --------
     def _init_urdf_limits(self):
@@ -497,11 +520,18 @@ class HeadGimbalMotionFilter(Node):
                 self.pitch = self._js_pitch
                 self.v_yaw = 0.0
                 self.v_pitch = 0.0
-                self._t_homing_start = self.get_clock().now()
-                self._phase = "HOMING"
-                self.get_logger().info(
-                    f"Got joint_states. Init yaw={self.yaw:.3f} pitch={self.pitch:.3f}. Entering HOMING."
-                )
+                if self.home_on_start:
+                    self._t_homing_start = self.get_clock().now()
+                    self._phase = "HOMING"
+                    self.get_logger().info(
+                        f"Got joint_states. Init yaw={self.yaw:.3f} pitch={self.pitch:.3f}. Entering HOMING."
+                    )
+                else:
+                    self._target_seq_at_tracking_enable = self._target_seq
+                    self._phase = "TRACKING"
+                    self.get_logger().info(
+                        f"Got joint_states. Init yaw={self.yaw:.3f} pitch={self.pitch:.3f}. Entering TRACKING."
+                    )
 
     def on_target(self, msg: Float64MultiArray):
         if len(msg.data) < 2:
@@ -515,10 +545,9 @@ class HeadGimbalMotionFilter(Node):
                     abs(pitch - self._last_target_pitch) < self.target_deadband):
                 return
 
-        # optional clamp to URDF limits
-        if self.clamp_to_urdf_limits and self._limits_loaded:
-            yaw = clamp(yaw, self.yaw_min, self.yaw_max)
-            pitch = clamp(pitch, self.pitch_min, self.pitch_max)
+        # NOTE: URDF clamping is done in tick() on the integrated setpoint;
+        # we keep the raw target here so a transiently out-of-range value
+        # that later returns inside the limits is not silently swallowed.
 
         self._target_seq += 1
         self._last_target_yaw = yaw
@@ -544,7 +573,7 @@ class HeadGimbalMotionFilter(Node):
         if self._last_tick_time is None:
             self._last_tick_time = now
             return self.dt_nominal
-        dt = (now - self._last_tick_time).nanoseconds / 1e9
+        dt = (now - self._last_tick_time).nanoseconds * 1e-9
         self._last_tick_time = now
         return clamp(dt, 1e-4, 0.2)
 
@@ -563,28 +592,35 @@ class HeadGimbalMotionFilter(Node):
         target_pitch = self.pitch
         vel_limit = self.max_vel
 
-        # WAIT_JS fallback
         if self._phase == "WAIT_JS":
-            elapsed = (now - self._t_start).nanoseconds / 1e9
+            elapsed = self._secs_since(now, self._t_start)
             if elapsed >= self.wait_js_timeout:
-                # Fallback init
+                # Fallback init: no joint_states ever arrived.
                 self.yaw = 0.0
                 self.pitch = 0.0
                 self.v_yaw = 0.0
                 self.v_pitch = 0.0
-                self._t_homing_start = now
-                self._phase = "HOMING"
-                self.get_logger().warn(
-                    f"No joint_states after {self.wait_js_timeout}s. Fallback init yaw=0 pitch=0. Entering HOMING."
-                )
+                if self.home_on_start:
+                    self._t_homing_start = now
+                    self._phase = "HOMING"
+                    self.get_logger().warn(
+                        f"No joint_states after {self.wait_js_timeout}s. "
+                        "Fallback init yaw=0 pitch=0. Entering HOMING."
+                    )
+                else:
+                    self._target_seq_at_tracking_enable = self._target_seq
+                    self._phase = "TRACKING"
+                    self.get_logger().warn(
+                        f"No joint_states after {self.wait_js_timeout}s. "
+                        "Fallback init yaw=0 pitch=0. Entering TRACKING."
+                    )
 
-        # HOMING
-        if self._phase == "HOMING":
+        elif self._phase == "HOMING":
             target_yaw = self.home_positions[0]
             target_pitch = self.home_positions[1]
             vel_limit = self.home_max_vel
 
-            homing_elapsed = (now - self._t_homing_start).nanoseconds / 1e9 if self._t_homing_start else 0.0
+            homing_elapsed = self._secs_since(now, self._t_homing_start)
             if self._homing_done():
                 self.get_logger().info("Homing complete.")
                 self._enable_tracking()
@@ -592,14 +628,11 @@ class HeadGimbalMotionFilter(Node):
                 self.get_logger().warn("Homing timeout. Enabling tracking anyway.")
                 self._enable_tracking()
 
-        # TRACKING
-        if self._phase == "TRACKING":
-            vel_limit = self.max_vel
-
+        elif self._phase == "TRACKING":
             # optional timeout behavior
             timed_out = False
             if self.target_timeout > 0.0:
-                t_since = (now - self._last_target_time).nanoseconds / 1e9
+                t_since = self._secs_since(now, self._last_target_time)
                 if t_since >= self.target_timeout:
                     timed_out = True
                     if self.on_target_timeout == "home":
@@ -646,10 +679,10 @@ class HeadGimbalMotionFilter(Node):
             self.yaw = clamp(self.yaw, self.yaw_min, self.yaw_max)
             self.pitch = clamp(self.pitch, self.pitch_min, self.pitch_max)
 
-        # publish
-        cmd = Float64MultiArray()
-        cmd.data = [float(self.yaw), float(self.pitch)]
-        self.pub_cmd.publish(cmd)
+        # publish (pre-allocated message)
+        self._cmd_msg.data[0] = float(self.yaw)
+        self._cmd_msg.data[1] = float(self.pitch)
+        self.pub_cmd.publish(self._cmd_msg)
 
     # -------- Controller switching --------
     def _enter_post_switch(self, now):
@@ -677,9 +710,17 @@ class HeadGimbalMotionFilter(Node):
                 self._phase = "WAIT_JS"
                 self.get_logger().info("Controller switch done. Waiting for joint_states (WAIT_JS).")
         else:
-            self._phase = "TRACKING"
-            self._target_seq_at_tracking_enable = self._target_seq
-            self.get_logger().info("Controller switch done. Entering TRACKING.")
+            # Avoid a startup jump: only enter TRACKING if we know the real pose.
+            if self._have_js:
+                self._phase = "TRACKING"
+                self._target_seq_at_tracking_enable = self._target_seq
+                self.get_logger().info("Controller switch done. Entering TRACKING.")
+            else:
+                self._phase = "WAIT_JS"
+                self.get_logger().info(
+                    "Controller switch done. No joint_states yet, waiting (WAIT_JS) "
+                    "to init pose before TRACKING."
+                )
 
     def _tick_controller_switch(self, now):
         """Non-blocking controller switch using /controller_manager/switch_controller."""
@@ -688,7 +729,7 @@ class HeadGimbalMotionFilter(Node):
             self._enter_post_switch(now)
             return
 
-        now_s = now.nanoseconds / 1e9
+        now_s = now.nanoseconds * 1e-9
 
         # If a request is in flight, wait for completion.
         if self._switch_future is not None:
@@ -785,9 +826,9 @@ class HeadGimbalMotionFilter(Node):
 
         if self.publish_hold_on_shutdown:
             try:
-                cmd = Float64MultiArray()
-                cmd.data = [float(self.yaw), float(self.pitch)]
-                self.pub_cmd.publish(cmd)
+                self._cmd_msg.data[0] = float(self.yaw)
+                self._cmd_msg.data[1] = float(self.pitch)
+                self.pub_cmd.publish(self._cmd_msg)
             except Exception:
                 pass
 
@@ -851,4 +892,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
