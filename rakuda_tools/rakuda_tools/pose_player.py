@@ -7,9 +7,8 @@ from rclpy.node import Node
 from rclpy.action import ActionClient
 
 from ament_index_python.packages import get_package_share_directory
-from control_msgs.action import FollowJointTrajectory
+from control_msgs.action import FollowJointTrajectory, GripperCommand
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
-from std_msgs.msg import Float64MultiArray
 
 
 class PosePlayer(Node):
@@ -24,9 +23,6 @@ class PosePlayer(Node):
             "initial_position.yaml",
         )
 
-        # Publisher fisso per head_controller (JointGroupPositionController)
-        self.head_pub = self.create_publisher(Float64MultiArray, "/head_controller/commands", 10)
-
     def play(self):
         with open(self.yaml_path, "r") as f:
             data = yaml.safe_load(f)
@@ -35,31 +31,31 @@ class PosePlayer(Node):
         move_time = float(pose["move_time"])
         controllers = pose["controllers"]
 
-        # 1) invia subito head (topic) se presente
-        if "head_controller" in controllers:
-            cfg = controllers["head_controller"]
-            positions = cfg["positions"]  # ordine = come da controller config
-            self.head_pub.publish(Float64MultiArray(data=positions))
-            self.get_logger().info("Head command published on /head_controller/commands")
+        # Crea e attendi tutti gli action client
+        jtc_clients = {}
+        gripper_clients = {}
 
-        # 2) prepara action client SOLO per i controller JTC (tutti tranne head_controller)
-        clients = {}
         for ctrl_name in controllers.keys():
-            if ctrl_name == "head_controller":
-                continue
+            is_gripper = ctrl_name.endswith("_gripper_controller")
+            if is_gripper:
+                action_name = f"/{ctrl_name}/gripper_cmd"
+                client = ActionClient(self, GripperCommand, action_name)
+            else:
+                action_name = f"/{ctrl_name}/follow_joint_trajectory"
+                client = ActionClient(self, FollowJointTrajectory, action_name)
 
-            action_name = f"/{ctrl_name}/follow_joint_trajectory"
-            client = ActionClient(self, FollowJointTrajectory, action_name)
             self.get_logger().info(f"Waiting action server: {action_name}")
-
             if not client.wait_for_server(timeout_sec=3.0):
                 raise RuntimeError(f"Action server not available: {action_name}")
 
-            clients[ctrl_name] = client
+            if is_gripper:
+                gripper_clients[ctrl_name] = client
+            else:
+                jtc_clients[ctrl_name] = client
 
-        # 3) invia i goal action
+        # ── JTC: invia tutti i goal in parallelo ─────────────────────────────
         send_futures = {}
-        for ctrl_name, client in clients.items():
+        for ctrl_name, client in jtc_clients.items():
             cfg = controllers[ctrl_name]
             joints = cfg["joints"]
             positions = cfg["positions"]
@@ -69,16 +65,15 @@ class PosePlayer(Node):
 
             pt = JointTrajectoryPoint()
             pt.positions = positions
+            pt.velocities = [0.0] * len(positions)
             pt.time_from_start.sec = int(move_time)
             pt.time_from_start.nanosec = int((move_time - int(move_time)) * 1e9)
             traj.points = [pt]
 
             goal = FollowJointTrajectory.Goal()
             goal.trajectory = traj
-
             send_futures[ctrl_name] = client.send_goal_async(goal)
 
-        # 4) aspetta accettazione + risultato
         result_futures = {}
         for ctrl_name, fut in send_futures.items():
             rclpy.spin_until_future_complete(self, fut)
@@ -92,10 +87,38 @@ class PosePlayer(Node):
             status = fut.result().status
             self.get_logger().info(f"{ctrl_name} completed (status={status})")
 
+        # ── Gripper: invia tutti i goal in parallelo ──────────────────────────
+        gripper_send_futures = {}
+        for ctrl_name, client in gripper_clients.items():
+            cfg = controllers[ctrl_name]
+            goal = GripperCommand.Goal()
+            goal.command.position = float(cfg["positions"][0])
+            goal.command.max_effort = float(cfg.get("max_effort", 1.5))
+            gripper_send_futures[ctrl_name] = client.send_goal_async(goal)
+
+        for ctrl_name, fut in gripper_send_futures.items():
+            rclpy.spin_until_future_complete(self, fut)
+            goal_handle = fut.result()
+            if not goal_handle.accepted:
+                raise RuntimeError(f"Gripper goal rejected by {ctrl_name}")
+            result_fut = goal_handle.get_result_async()
+            rclpy.spin_until_future_complete(self, result_fut)
+            self.get_logger().info(f"{ctrl_name} completed")
+
 
 def main():
+    import sys
+    from rclpy.utilities import remove_ros_args
+
+    # Supporta: ros2 run rakuda_tools pose_player <pose>
+    # e anche:  ros2 run rakuda_tools pose_player --ros-args -p pose:=<pose>
+    non_ros = remove_ros_args(sys.argv)
+    pose_override = non_ros[1] if len(non_ros) > 1 else None
+
     rclpy.init()
     node = PosePlayer()
+    if pose_override:
+        node.pose_name = pose_override
     node.play()
     node.destroy_node()
     rclpy.shutdown()

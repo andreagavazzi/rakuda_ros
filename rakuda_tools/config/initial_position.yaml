@@ -1,8 +1,8 @@
-# rakuda_tools/config/init_pose.yaml
+# rakuda_tools/config/initial_position.yaml
 poses:
   home:
-    move_time: 3.0         # secondi
-    unit: rad              # rad 
+    move_time: 3.0
+    unit: rad
     controllers:
       left_arm_controller:
         joints:
@@ -12,8 +12,7 @@ poses:
           - l_arm_joint4
           - l_arm_joint5
           - l_arm_joint6
-          - l_gripper_joint
-        positions: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        positions: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
       right_arm_controller:
         joints:
@@ -23,8 +22,7 @@ poses:
           - r_arm_joint4
           - r_arm_joint5
           - r_arm_joint6
-          - r_gripper_joint
-        positions: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0,0.0]
+        positions: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
       head_controller:
         joints:
@@ -37,11 +35,18 @@ poses:
           - waist_yaw_joint
         positions: [0.0]
 
+      left_gripper_controller:
+        positions: [0.0]
+        max_effort: 1.5
+
+      right_gripper_controller:
+        positions: [0.0]
+        max_effort: 1.5
 
 
   pos1:
-    move_time: 2.0         # secondi
-    unit: rad              # rad 
+    move_time: 2.0
+    unit: rad
     controllers:
       left_arm_controller:
         joints:
@@ -51,8 +56,7 @@ poses:
           - l_arm_joint4
           - l_arm_joint5
           - l_arm_joint6
-          - l_gripper_joint
-        positions: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0,0.0]
+        positions: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
       right_arm_controller:
         joints:
@@ -62,8 +66,7 @@ poses:
           - r_arm_joint4
           - r_arm_joint5
           - r_arm_joint6
-          - r_gripper_joint
-        positions: [0.0, -0.29, -0.30, 1.74, 0.0, 0.0,0.0]
+        positions: [0.0, -0.29, -0.30, 1.74, 0.0, 0.0]
 
       head_controller:
         joints:
@@ -75,10 +78,11 @@ poses:
         joints:
           - waist_yaw_joint
         positions: [0.0]
+
 
   pos2:
-    move_time: 0.5         # secondi
-    unit: rad              # rad 
+    move_time: 0.5
+    unit: rad
     controllers:
       left_arm_controller:
         joints:
@@ -88,8 +92,7 @@ poses:
           - l_arm_joint4
           - l_arm_joint5
           - l_arm_joint6
-          - l_gripper_joint
-        positions: [0.0, 0.29, 0.30, -1.74, 0.0, 0.0, 0.0]
+        positions: [0.0, 0.29, 0.30, -1.74, 0.0, 0.0]
 
       right_arm_controller:
         joints:
@@ -99,8 +102,7 @@ poses:
           - r_arm_joint4
           - r_arm_joint5
           - r_arm_joint6
-          - r_gripper_joint
-        positions: [0.0, -0.29, -0.30, 1.74, 0.0, 0.0, 0.0]
+        positions: [0.0, -0.29, -0.30, 1.74, 0.0, 0.0]
 
       head_controller:
         joints:
@@ -112,10 +114,11 @@ poses:
         joints:
           - waist_yaw_joint
         positions: [0.0]
+
 
   pos3:
-    move_time: 0.5         # secondi
-    unit: rad              # rad 
+    move_time: 0.5
+    unit: rad
     controllers:
       left_arm_controller:
         joints:
@@ -125,8 +128,7 @@ poses:
           - l_arm_joint4
           - l_arm_joint5
           - l_arm_joint6
-          - l_gripper_joint
-        positions: [0.0, 1.31, 0.0, -1.74, 0.0, 0.0, 0.60]
+        positions: [0.0, 1.31, 0.0, -1.74, 0.0, 0.0]
 
       right_arm_controller:
         joints:
@@ -136,8 +138,7 @@ poses:
           - r_arm_joint4
           - r_arm_joint5
           - r_arm_joint6
-          - r_gripper_joint
-        positions: [0.0, -1.31, -0.0, 1.74, 0.0, 0.0, -0.60]
+        positions: [0.0, -1.31, 0.0, 1.74, 0.0, 0.0]
 
       head_controller:
         joints:
@@ -150,30 +151,28 @@ poses:
           - waist_yaw_joint
         positions: [0.0]
 
-  close_gripper:
-    move_time: 0.5         # secondi
-    unit: rad              # rad 
-    controllers:
-      left_arm_controller:
-        joints:
-          - l_gripper_joint
-        positions: [0.0,]
 
-      right_arm_controller:
-        joints:
-          - r_gripper_joint
+  close_gripper:
+    move_time: 0.5
+    unit: rad
+    controllers:
+      left_gripper_controller:
         positions: [0.0]
+        max_effort: 1.5
+
+      right_gripper_controller:
+        positions: [0.0]
+        max_effort: 1.5
+
 
   open_gripper:
-    move_time: 0.5         # secondi
-    unit: rad              # rad 
+    move_time: 0.5
+    unit: rad
     controllers:
-      left_arm_controller:
-        joints:
-          - l_gripper_joint
+      left_gripper_controller:
         positions: [0.60]
+        max_effort: 1.5
 
-      right_arm_controller:
-        joints:
-          - r_gripper_joint
+      right_gripper_controller:
         positions: [-0.60]
+        max_effort: 1.5

@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eco — Control Panel</title>
+<script src="/socket.io.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+
+  :root {
+    --bg:       #0e0e0c;
+    --bg2:      #181816;
+    --bg3:      #222220;
+    --border:   rgba(255,255,255,0.07);
+    --text:     #c8c6bc;
+    --muted:    #5a5a55;
+    --blue:     #378ADD;
+    --blue-dim: #0C447C;
+    --teal:     #1D9E75;
+    --teal-dim: #085041;
+    --purple:   #7F77DD;
+    --purple-dim:#3C3489;
+    --amber:    #BA7517;
+    --amber-dim:#412402;
+    --coral:    #D85A30;
+    --coral-dim:#4A1B0C;
+    --green:    #639922;
+    --green-dim:#173404;
+    --red:      #E24B4A;
+    --red-dim:  #501313;
+    --running:  #1D9E75;
+    --stopped:  #3d3d3a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo {
+    width: 32px; height: 32px;
+    background: var(--teal);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    font-weight: 500;
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  h1 {
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: #e8e6dc;
+  }
+
+  .subtitle {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .conn-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; gap: 6px;
+    transition: all 0.3s;
+  }
+
+  .conn-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: background 0.3s;
+  }
+
+  .conn-badge.connected .conn-dot { background: var(--teal); }
+  .conn-badge.connected { border-color: var(--teal-dim); color: #9FE1CB; }
+
+  /* Main layout */
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    grid-template-rows: 1fr 180px 240px;
+    gap: 0;
+    min-height: 0;
+  }
+
+  /* Module grid */
+  .modules {
+    padding: 20px;
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+  }
+
+  .group-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px;
+  }
+
+  .group-box {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .group-header {
+    padding: 8px 14px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-family: 'IBM Plex Mono', monospace;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .group-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .module-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+  .module-item:last-child { border-bottom: none; }
+  .module-item:hover { background: rgba(255,255,255,0.02); }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--stopped);
+    flex-shrink: 0;
+    transition: background 0.3s;
+    box-shadow: 0 0 0 0 transparent;
+  }
+
+  .status-dot.running {
+    background: var(--running);
+    box-shadow: 0 0 6px var(--running);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 4px var(--running); }
+    50% { box-shadow: 0 0 10px var(--running); }
+  }
+
+  .module-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .module-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: #e8e6dc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .module-type {
+    font-size: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .btn-toggle {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    letter-spacing: 0.05em;
+  }
+
+  .btn-toggle.start {
+    background: transparent;
+    color: var(--blue);
+    border-color: var(--blue-dim);
+  }
+  .btn-toggle.start:hover {
+    background: var(--blue-dim);
+    color: #B5D4F4;
+  }
+
+  .btn-toggle.stop {
+    background: transparent;
+    color: var(--red);
+    border-color: var(--red-dim);
+  }
+  .btn-toggle.stop:hover {
+    background: var(--red-dim);
+    color: #F7C1C1;
+  }
+
+  /* Nodes panel */
+  .nodes-panel {
+    grid-column: 2;
+    grid-row: 1 / 4;
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 12px 16px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .refresh-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all 0.15s;
+  }
+  .refresh-btn:hover { background: var(--bg3); color: var(--text); }
+
+  .nodes-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+
+  .node-item {
+    padding: 6px 16px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #9FE1CB;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+
+  .node-item::before {
+    content: '';
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--teal);
+    flex-shrink: 0;
+  }
+
+  .nodes-empty {
+    padding: 24px 16px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  /* Motions panel */
+  .motions-panel {
+    grid-column: 1;
+    grid-row: 2;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .motions-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 16px;
+    overflow-y: auto;
+    align-content: flex-start;
+  }
+
+  .btn-motion {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 7px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--amber-dim);
+    background: transparent;
+    color: var(--amber);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.04em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .btn-motion:hover {
+    background: var(--amber-dim);
+    color: #FAC775;
+  }
+
+  .btn-motion.running {
+    background: var(--amber-dim);
+    color: #FAC775;
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .btn-motion .spin {
+    display: inline-block;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Log panel */
+  .log-panel {
+    grid-column: 1;
+    grid-row: 3;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .log-header {
+    padding: 8px 16px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .log-clear {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+  }
+  .log-clear:hover { background: var(--bg3); color: var(--text); }
+
+  #log-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 16px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    line-height: 1.7;
+    background: var(--bg);
+  }
+
+  .log-line {
+    display: flex;
+    gap: 12px;
+    opacity: 0;
+    animation: fadein 0.2s forwards;
+  }
+
+  @keyframes fadein {
+    to { opacity: 1; }
+  }
+
+  .log-id {
+    color: var(--muted);
+    flex-shrink: 0;
+    min-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .log-msg { color: var(--text); word-break: break-all; }
+  .log-msg.error { color: var(--red); }
+  .log-msg.info  { color: var(--blue); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="logo">AG</div>
+    <div>
+      <h1>Rakuda | Eco Control Panel</h1>
+      <div class="subtitle">ROS2 Humble</div>
+    </div>
+  </div>
+  <div class="conn-badge" id="conn-badge">
+    <div class="conn-dot" id="conn-dot"></div>
+    <span id="conn-text">Connessione...</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- Moduli -->
+  <div class="modules">
+    <div class="group-grid" id="group-grid">
+      <!-- Generato da JS -->
+    </div>
+  </div>
+
+  <!-- Motions -->
+  <div class="motions-panel">
+    <div class="log-header">
+      <span>Motions</span>
+    </div>
+    <div class="motions-list" id="motions-list">
+      <!-- Generato da JS -->
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="log-panel">
+    <div class="log-header">
+      <span>Log</span>
+      <button class="log-clear" onclick="clearLog()">PULISCI</button>
+    </div>
+    <div id="log-area"></div>
+  </div>
+
+  <!-- Nodi ROS2 -->
+  <div class="nodes-panel">
+    <div class="panel-header">
+      <span>Nodi attivi</span>
+      <button class="refresh-btn" onclick="refreshNodes()" title="Aggiorna">↻</button>
+    </div>
+    <div class="nodes-list" id="nodes-list">
+      <div class="nodes-empty">—</div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const socket = io();
+
+// Mappa colori gruppi
+const colors = {
+  blue:   { dot: '#378ADD', dim: '#0C447C' },
+  teal:   { dot: '#1D9E75', dim: '#085041' },
+  purple: { dot: '#7F77DD', dim: '#3C3489' },
+  amber:  { dot: '#BA7517', dim: '#412402' },
+  coral:  { dot: '#D85A30', dim: '#4A1B0C' },
+  green:  { dot: '#639922', dim: '#173404' },
+};
+
+let modules = [];
+let motions = [];
+let running = new Set();
+
+// ─── Connessione ──────────────────────────────────────────────────────────────
+socket.on('connect', () => {
+  document.getElementById('conn-badge').classList.add('connected');
+  document.getElementById('conn-text').textContent = 'Connesso';
+  addLog('system', '▶ Connesso al pannello Rakuda');
+});
+
+socket.on('disconnect', () => {
+  document.getElementById('conn-badge').classList.remove('connected');
+  document.getElementById('conn-text').textContent = 'Disconnesso';
+  addLog('system', '■ Connessione persa');
+});
+
+// ─── Init dati ────────────────────────────────────────────────────────────────
+socket.on('init', (data) => {
+  modules = data.modules;
+  motions = data.motions || [];
+  running = new Set(data.running);
+  renderModules();
+  renderMotions();
+  refreshNodes();
+});
+
+// ─── Status aggiornamento ─────────────────────────────────────────────────────
+socket.on('status', (data) => {
+  const { id, running: isRunning } = data;
+  if (isRunning) running.add(id);
+  else running.delete(id);
+  updateModuleUI(id, isRunning);
+});
+
+// ─── Log ──────────────────────────────────────────────────────────────────────
+socket.on('log', (data) => {
+  addLog(data.id, data.msg);
+});
+
+// ─── Nodi ─────────────────────────────────────────────────────────────────────
+socket.on('nodes', (data) => {
+  const list = document.getElementById('nodes-list');
+  if (!data.nodes || data.nodes.length === 0) {
+    list.innerHTML = '<div class="nodes-empty">Nessun nodo attivo</div>';
+    return;
+  }
+  list.innerHTML = data.nodes
+    .filter(n => n.trim())
+    .map(n => `<div class="node-item">${n}</div>`)
+    .join('');
+});
+
+// ─── Motions ──────────────────────────────────────────────────────────────────
+function renderMotions() {
+  const list = document.getElementById('motions-list');
+  list.innerHTML = '';
+  motions.forEach(m => {
+    const btn = document.createElement('button');
+    btn.className = 'btn-motion';
+    btn.id = `motion-${m.id}`;
+    btn.innerHTML = `▷ ${m.label}`;
+    btn.onclick = () => runMotion(m);
+    list.appendChild(btn);
+  });
+}
+
+function runMotion(m) {
+  const btn = document.getElementById(`motion-${m.id}`);
+  if (!btn) return;
+  btn.classList.add('running');
+  btn.innerHTML = `<span class="spin">⟳</span> ${m.label}`;
+  socket.emit('run_motion', { id: m.id, label: m.label, cmd: m.cmd });
+}
+
+socket.on('motion_done', (data) => {
+  const btn = document.getElementById(`motion-${data.id}`);
+  if (!btn) return;
+  const m = motions.find(x => x.id === data.id);
+  if (!m) return;
+  btn.classList.remove('running');
+  btn.innerHTML = `▷ ${m.label}`;
+});
+
+// ─── Render moduli ────────────────────────────────────────────────────────────
+function renderModules() {
+  const grid = document.getElementById('group-grid');
+  grid.innerHTML = '';
+
+  modules.forEach(group => {
+    const c = colors[group.color] || colors.blue;
+    const box = document.createElement('div');
+    box.className = 'group-box';
+    box.innerHTML = `
+      <div class="group-header" style="color:${c.dot}">
+        <div class="group-dot" style="background:${c.dot}"></div>
+        ${group.group}
+      </div>
+    `;
+    group.items.forEach(item => {
+      const isRunning = running.has(item.id);
+      const row = document.createElement('div');
+      row.className = 'module-item';
+      row.id = `item-${item.id}`;
+      row.innerHTML = `
+        <div class="status-dot ${isRunning ? 'running' : ''}" id="dot-${item.id}"></div>
+        <div class="module-info">
+          <div class="module-name">${item.label}</div>
+          <div class="module-type">${item.type}</div>
+        </div>
+        <button
+          class="btn-toggle ${isRunning ? 'stop' : 'start'}"
+          id="btn-${item.id}"
+          onclick="toggle('${item.id}', '${escapeHtml(item.cmd)}', '${item.type}')">
+          ${isRunning ? '■ FERMA' : '▶ AVVIA'}
+        </button>
+      `;
+      box.appendChild(row);
+    });
+    grid.appendChild(box);
+  });
+}
+
+function updateModuleUI(id, isRunning) {
+  const dot = document.getElementById(`dot-${id}`);
+  const btn = document.getElementById(`btn-${id}`);
+  if (!dot || !btn) return;
+
+  if (isRunning) {
+    dot.classList.add('running');
+    btn.className = 'btn-toggle stop';
+    btn.textContent = '■ FERMA';
+  } else {
+    dot.classList.remove('running');
+    btn.className = 'btn-toggle start';
+    btn.textContent = '▶ AVVIA';
+  }
+}
+
+// ─── Azioni ───────────────────────────────────────────────────────────────────
+function toggle(id, cmd, type) {
+  if (running.has(id)) {
+    socket.emit('stop', { id });
+  } else {
+    socket.emit('start', { id, cmd, type });
+  }
+}
+
+function refreshNodes() {
+  socket.emit('nodes');
+}
+
+// Auto-refresh nodi ogni 5 secondi
+setInterval(refreshNodes, 5000);
+
+// ─── Log ──────────────────────────────────────────────────────────────────────
+function addLog(id, msg) {
+  const area = document.getElementById('log-area');
+  const isError = msg.includes('[ERRORE]') || msg.includes('error') || msg.includes('ERROR');
+  const isInfo = msg.startsWith('▶') || msg.startsWith('■');
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = `
+    <span class="log-id">${id}</span>
+    <span class="log-msg ${isError ? 'error' : isInfo ? 'info' : ''}">${escapeHtml(msg)}</span>
+  `;
+  area.appendChild(line);
+  // Mantieni max 500 righe
+  while (area.children.length > 500) area.removeChild(area.firstChild);
+  area.scrollTop = area.scrollHeight;
+}
+
+function clearLog() {
+  document.getElementById('log-area').innerHTML = '';
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>
