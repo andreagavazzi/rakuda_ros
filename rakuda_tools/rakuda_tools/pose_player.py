@@ -35,6 +35,7 @@ class PosePlayer(Node):
         jtc_clients = {}
         gripper_clients = {}
 
+        all_clients = {}
         for ctrl_name in controllers.keys():
             is_gripper = ctrl_name.endswith("_gripper_controller")
             if is_gripper:
@@ -43,11 +44,12 @@ class PosePlayer(Node):
             else:
                 action_name = f"/{ctrl_name}/follow_joint_trajectory"
                 client = ActionClient(self, FollowJointTrajectory, action_name)
+            all_clients[ctrl_name] = (client, is_gripper, action_name)
 
+        for ctrl_name, (client, is_gripper, action_name) in all_clients.items():
             self.get_logger().info(f"Waiting action server: {action_name}")
             if not client.wait_for_server(timeout_sec=3.0):
                 raise RuntimeError(f"Action server not available: {action_name}")
-
             if is_gripper:
                 gripper_clients[ctrl_name] = client
             else:
@@ -106,19 +108,48 @@ class PosePlayer(Node):
             self.get_logger().info(f"{ctrl_name} completed")
 
 
+_SOCK_PATH = "/tmp/pose_player.sock"
+
+
 def main():
     import sys
+    import socket
     from rclpy.utilities import remove_ros_args
 
-    # Supporta: ros2 run rakuda_tools pose_player <pose>
-    # e anche:  ros2 run rakuda_tools pose_player --ros-args -p pose:=<pose>
     non_ros = remove_ros_args(sys.argv)
     pose_override = non_ros[1] if len(non_ros) > 1 else None
 
+    if not pose_override:
+        yaml_path = os.path.join(
+            get_package_share_directory("rakuda_tools"),
+            "config",
+            "initial_position.yaml",
+        )
+        with open(yaml_path) as f:
+            data = yaml.safe_load(f)
+        poses = ", ".join(data.get("poses", {}).keys())
+        print(f"Available poses: {poses}")
+        print(f"Usage: ros2 run rakuda_tools pose_player <pose_name>")
+        return
+
+    # Fast path: delegate to pose_player_server via UNIX socket (no ROS2 overhead)
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(0.3)
+        s.connect(_SOCK_PATH)
+        s.sendall(pose_override.encode())
+        reply = s.recv(256).decode()
+        s.close()
+        if reply.startswith("ERR"):
+            print(f"Server error: {reply[4:]}")
+        return
+    except (socket.error, OSError):
+        pass
+
+    # Fallback: standalone execution
     rclpy.init()
     node = PosePlayer()
-    if pose_override:
-        node.pose_name = pose_override
+    node.pose_name = pose_override
     node.play()
     node.destroy_node()
     rclpy.shutdown()

@@ -45,7 +45,7 @@ poses:
 
 
   pos1:
-    move_time: 2.0
+    move_time: 1.0
     unit: rad
     controllers:
       left_arm_controller:
