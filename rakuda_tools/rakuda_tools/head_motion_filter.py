@@ -816,6 +816,42 @@ class HeadGimbalMotionFilter(Node):
             self.get_logger().warn(f"Failed to call SwitchController: {e}")
             self._next_switch_attempt_time = now_s + self.switch_retry_period_sec
 
+    # -------- Shutdown controller restore --------
+    def _reverse_switch(self):
+        """Restore controllers to pre-startup state (reverse of startup switch)."""
+        if not self.auto_switch_controllers or not self._switch_done:
+            return
+        if SwitchController is None or self._switch_client is None:
+            return
+        if not self._switch_client.service_is_ready():
+            print("[head_gimbal_motion_filter] SwitchController not ready, skipping restore.")
+            return
+
+        req = SwitchController.Request()
+        req.activate_controllers = list(self.deactivate_controllers)   # reversed
+        req.deactivate_controllers = list(self.activate_controllers)    # reversed
+        req.start_controllers = req.activate_controllers
+        req.stop_controllers = req.deactivate_controllers
+        req.strictness = 1   # BEST_EFFORT
+        req.activate_asap = True
+        req.start_asap = True
+        req.timeout = _duration_from_seconds(3.0)
+
+        print(
+            f"[head_gimbal_motion_filter] Restoring controllers: "
+            f"deactivate={req.deactivate_controllers} activate={req.activate_controllers}"
+        )
+        try:
+            future = self._switch_client.call_async(req)
+            rclpy.spin_until_future_complete(self, future, timeout_sec=3.0)
+            ok = future.result() and bool(getattr(future.result(), "ok", False))
+            if ok:
+                print("[head_gimbal_motion_filter] Controllers restored.")
+            else:
+                print("[head_gimbal_motion_filter] Controller restore returned ok=False.")
+        except Exception as e:
+            print(f"[head_gimbal_motion_filter] Reverse switch failed: {e}")
+
     # -------- Graceful stop --------
     def stop_cleanly(self):
         try:
@@ -873,6 +909,10 @@ def main():
             pass
         try:
             executor.remove_node(node)
+        except Exception:
+            pass
+        try:
+            node._reverse_switch()
         except Exception:
             pass
         try:
