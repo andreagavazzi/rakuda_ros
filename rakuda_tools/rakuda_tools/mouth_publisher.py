@@ -7,6 +7,10 @@ calcola l'RMS e lo manda all'ESP32 (display Rakuda) via USB Serial.
 Dipendenze:
     pip install pyserial
     sudo apt install pulseaudio-utils   # per parec
+
+Add your user to dialout group
+sudo usermod -a -G dialout YOUR_USER_NAME
+    
 """
 
 import subprocess
